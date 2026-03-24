@@ -113,4 +113,23 @@ class WalletProvider with ChangeNotifier {
     _walletData = null;
     notifyListeners();
   }
+
+  Future<String?> getShareableUrl(String certId) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final token = await _storageService.getToken();
+      if (token == null) throw Exception('No token found');
+      final url = await _walletDataSource.getShareableUrl(token, certId);
+      return url;
+    } catch (e) {
+      _error = e.toString();
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

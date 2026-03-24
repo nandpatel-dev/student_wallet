@@ -105,7 +105,10 @@ class _CertificatesPageState extends State<CertificatesPage>
     BuildContext context,
     WalletCert cert,
   ) async {
-    final viewUrl  = cert.viewUrl;
+    final rawUrl  = cert.viewUrl;
+    final viewUrl = rawUrl.contains('localhost') 
+        ? rawUrl.replaceAll('localhost', '192.168.1.3') 
+        : rawUrl;
     try {
       await launchUrl(Uri.parse(viewUrl), mode: LaunchMode.externalApplication);
     } catch (e) {
@@ -124,7 +127,10 @@ class _CertificatesPageState extends State<CertificatesPage>
     BuildContext context,
     WalletCert cert,
   ) async {
-    final downloadUrl = cert.downloadUrl;
+    final rawUrl      = cert.downloadUrl;
+    final downloadUrl = rawUrl.contains('localhost') 
+        ? rawUrl.replaceAll('localhost', '192.168.1.3') 
+        : rawUrl;
     try {
       await launchUrl(Uri.parse(downloadUrl), mode: LaunchMode.externalApplication);
       _showSnackbar(context, 'Starting download...');
@@ -133,6 +139,40 @@ class _CertificatesPageState extends State<CertificatesPage>
         _showSnackbar(
           context,
           'Failed to start download.',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  // ── VERIFY Certificate ─────────────────────────
+  Future<void> _verifyCertificate(
+    BuildContext context,
+    WalletCert cert,
+  ) async {
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+
+    // 1. Show loading state if needed, or just hit the API
+    _showSnackbar(context, 'Fetching verification link...');
+    
+    try {
+      final shareUrl = await walletProvider.getShareableUrl(cert.id);
+      
+      if (shareUrl != null && shareUrl.isNotEmpty) {
+        // Rewrite localhost if needed (redundant but safe if not handled in provider)
+        final finalUrl = shareUrl.contains('localhost') 
+            ? shareUrl.replaceAll('localhost', '192.168.1.3') // Replace with your server IP
+            : shareUrl;
+
+        await launchUrl(Uri.parse(finalUrl), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception(walletProvider.error ?? 'Verification URL not found');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showSnackbar(
+          context,
+          "Failed to get verification link: ${e.toString().split('Exception: ').last}",
           isError: true,
         );
       }
@@ -157,9 +197,6 @@ class _CertificatesPageState extends State<CertificatesPage>
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
-            final isDownloading = _downloading[title] ?? false;
-            final isDownloaded  = _downloaded[title]  ?? false;
-
             return Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppTheme.spacingLarge,
@@ -281,62 +318,62 @@ class _CertificatesPageState extends State<CertificatesPage>
                   ),
                   const SizedBox(height: AppTheme.spacingXLarge),
 
-                  // ── 3 Action Buttons ──────────
-                  Row(
+                  // ── Action Buttons (Grid Layout) ──────────
+                  Column(
                     children: [
-
-                      // ── Close ─────────────────
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(context),
-                          icon:  const Icon(
-                            Icons.close_rounded,
-                            size: 18,
+                      Row(
+                        children: [
+                          _buildModalButton(
+                            context,
+                            icon: Icons.visibility_rounded,
+                            label: 'View',
+                            color: colorScheme.primary,
+                            isFilled: true,
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              await _viewCertificate(context, cert);
+                            },
                           ),
-                          label: const Text('Close'),
-                        ),
-                      ),
-                      const SizedBox(width: AppTheme.spacingSmall),
-
-                      // ── View ──────────────────
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            await _viewCertificate(
-                              context,
-                              cert,
-                            );
-                          },
-                          icon:  const Icon(
-                            Icons.visibility_rounded,
-                            size: 18,
+                          const SizedBox(width: AppTheme.spacingSmall),
+                          _buildModalButton(
+                            context,
+                            icon: Icons.download_rounded,
+                            label: 'Download',
+                            color: colorScheme.secondary,
+                            isFilled: false,
+                            onPressed: () async {
+                              await _downloadCertificate(context, cert);
+                            },
                           ),
-                          label: const Text('View'),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: AppTheme.spacingSmall),
-
-                      // ── Download ──────────────
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            await _downloadCertificate(
-                              context,
-                              cert,
-                            );
-                          },
-                          icon: Icon(
-                            Icons.download_rounded,
-                            size: 18,
+                      const SizedBox(height: AppTheme.spacingSmall),
+                      Row(
+                        children: [
+                          _buildModalButton(
+                            context,
+                            icon: Icons.verified_user_rounded,
+                            label: 'Verify',
+                            color: AppTheme.accentGreen,
+                            isFilled: false,
+                            onPressed: () async {
+                              await _verifyCertificate(context, cert);
+                            },
                           ),
-                          label: Text('Download'),
-                        ),
+                          const SizedBox(width: AppTheme.spacingSmall),
+                          _buildModalButton(
+                            context,
+                            icon: Icons.close_rounded,
+                            label: 'Close',
+                            color: AppTheme.accentRed,
+                            isFilled: false,
+                            isOutlined: true,
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
                       ),
-
                     ],
                   ),
-
                 ],
               ),
             );
@@ -344,6 +381,55 @@ class _CertificatesPageState extends State<CertificatesPage>
         );
       },
     );
+  }
+
+  // ── Helper for Modal Buttons ──────────────────
+  Widget _buildModalButton(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isFilled,
+    bool isOutlined = false,
+    required VoidCallback onPressed,
+  }) {
+    if (isFilled) {
+      return Expanded(
+        child: FilledButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18),
+          label: Text(label),
+          style: FilledButton.styleFrom(
+            backgroundColor: color,
+            minimumSize: const Size(0, 48),
+          ),
+        ),
+      );
+    } else if (isOutlined) {
+      return Expanded(
+        child: OutlinedButton.icon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18, color: color),
+          label: Text(label, style: TextStyle(color: color)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: color),
+            minimumSize: const Size(0, 48),
+          ),
+        ),
+      );
+    } else {
+      return Expanded(
+        child: FilledButton.tonalIcon(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 18, color: color),
+          label: Text(label, style: TextStyle(color: color)),
+          style: FilledButton.styleFrom(
+            backgroundColor: color.withOpacity(0.12),
+            minimumSize: const Size(0, 48),
+          ),
+        ),
+      );
+    }
   }
 
   // ── Detail Chip Widget ─────────────────────────
@@ -488,7 +574,6 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── Summary Row ─────────────────────────────────
   Widget _buildSummaryRow(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
     
     final summary = [
       {

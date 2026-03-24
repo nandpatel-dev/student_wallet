@@ -365,23 +365,32 @@ class _LoginPageState extends State<LoginPage>
                         Container(
                           width: 88,
                           height: 88,
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.15),
                             shape: BoxShape.circle,
                             border: Border.all(
                                 color: Colors.white.withOpacity(0.3), width: 2),
                           ),
-                          child: const Icon(Icons.school_rounded,
-                              color: Colors.white, size: 44),
+                          child: Padding(
+                            padding: const EdgeInsets.all(AppTheme.spacingSmall),
+                            child: Image.asset(
+                              'assets/images/logo.png',
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const Icon(Icons.school_rounded,
+                                      color: Colors.white, size: 44),
+                            ),
+                          ),
                         ),
                         const SizedBox(height: AppTheme.spacingMedium),
 
                         // Title
                         Text(
-                          'Student Portfolio',
+                          'JUSTYFAI',
                           style: textTheme.headlineLarge?.copyWith(
                             color: Colors.white,
-                            letterSpacing: -0.5,
+                            letterSpacing: 2.0,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                         const SizedBox(height: AppTheme.spacingXSmall),

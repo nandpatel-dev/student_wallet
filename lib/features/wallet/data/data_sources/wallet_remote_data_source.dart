@@ -26,4 +26,53 @@ class WalletRemoteDataSource {
       rethrow;
     }
   }
+
+  Future<String> getShareableUrl(String token, String certId) async {
+    try {
+      final response = await dio.post(
+        ApiConstants.shareCertificate(certId),
+        options: Options(
+          headers: {'x-student-wallet': token},
+        ),
+      );
+
+      print('VERIFY API RESPONSE: \${response.data}');
+
+      // Handle both wrapped {success: true, data: {url: ...}} and direct {shareUrl: ...} responses
+      if (response.data is Map) {
+        final data = response.data;
+        String? finalUrl;
+
+        if (data['success'] == true) {
+          final innerData = data['data'];
+          if (innerData is String) finalUrl = innerData;
+          else if (innerData is Map) {
+            finalUrl = innerData['url'] ?? innerData['shareUrl'] ?? innerData['verifyUrl'] ?? innerData.toString();
+          }
+        } else if (data['shareUrl'] != null || data['url'] != null || data['verifyUrl'] != null) {
+           finalUrl = data['shareUrl'] ?? data['url'] ?? data['verifyUrl'];
+        }
+
+        if (finalUrl != null) {
+          // If the backend returns localhost, rewrite it so the physical phone or emulator can access it using the machine IP
+          if (finalUrl.contains('localhost')) {
+             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.3');
+          }
+          return finalUrl;
+        }
+        
+        throw Exception(data['message'] ?? 'Failed to get shareable URL. Response: \$data');
+      }
+
+      throw Exception('Unexpected response format: \${response.data}');
+    } catch (e) {
+      if (e is DioException) {
+         print('VERIFY API ERROR: \${e.response?.data}');
+         if (e.response?.statusCode == 401) {
+           throw Exception('Unauthorized');
+         }
+      }
+      rethrow;
+    }
+  }
 }
