@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/app_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/student/presentation/pages/certificates_page.dart';
-import 'package:student_app/features/student/presentation/pages/profile_page.dart';
+// import 'package:student_app/features/student/presentation/pages/profile_page.dart';
 import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
 import 'package:intl/intl.dart';
@@ -24,7 +24,7 @@ class _DashboardWrapperState extends State<DashboardWrapper> {
   final List<Widget> _screens = [
     const DashboardPage(),
     const CertificatesPage(),
-    const ProfilePage(),
+    // const ProfilePage(),
   ];
 
   @override
@@ -59,11 +59,13 @@ class _DashboardWrapperState extends State<DashboardWrapper> {
             selectedIcon:  Icon(Icons.card_membership_rounded),
             label:         'Certificates',
           ),
+          /*
           NavigationDestination(
             icon:          Icon(Icons.person_outline_rounded),
             selectedIcon:  Icon(Icons.person_rounded),
             label:         'Profile',
           ),
+          */
         ],
       ),
     );
@@ -171,7 +173,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
+                      /*
                       // ── Greeting Card ──────────────────
                       _buildGreetingCard(context, walletData),
                       const SizedBox(height: AppTheme.spacingLarge),
@@ -184,6 +186,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       const SizedBox(height: AppTheme.spacingSmall),
                       _buildStatsGrid(context, walletData),
                       const SizedBox(height: AppTheme.spacingLarge),
+                      */
 
                       // ── Recent Activity ────────────────
                       Row(

@@ -5,6 +5,7 @@ import 'package:student_app/core/theme/app_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/dashboard/presentation/pages/dashboard_page.dart';
 import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:student_app/features/auth/presentation/pages/qr_scanner_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
 
   // ── Controllers ────────────────────────────────
   final TextEditingController _emailController = TextEditingController();
@@ -22,6 +23,7 @@ class _LoginPageState extends State<LoginPage>
   final FocusNode _emailFocus                  = FocusNode();
 
   // ── State ──────────────────────────────────────
+  late TabController _tabController;
   bool _isEmailValid      = false;
   String _errorText       = '';
 
@@ -49,10 +51,12 @@ class _LoginPageState extends State<LoginPage>
       curve:  Curves.easeOut,
     ));
     _animController.forward();
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     _animController.dispose();
     _emailController.dispose();
     _otpController.dispose();
@@ -341,61 +345,48 @@ class _LoginPageState extends State<LoginPage>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-
                   // ── Hero Banner ──────────────────
                   Container(
-                    width:   double.infinity,
-                    padding: const EdgeInsets.fromLTRB(
-                      AppTheme.spacingLarge,
-                      AppTheme.spacingXLarge,
-                      AppTheme.spacingLarge,
-                      AppTheme.spacingXLarge,
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppTheme.spacingXLarge,
+                      horizontal: AppTheme.spacingLarge,
                     ),
                     decoration: BoxDecoration(
                       color: colorScheme.primary,
                       borderRadius: const BorderRadius.only(
-                        bottomLeft: Radius.circular(
-                          AppTheme.radiusXXLarge,
-                        ),
-                        bottomRight: Radius.circular(
-                          AppTheme.radiusXXLarge,
-                        ),
+                        bottomLeft: Radius.circular(AppTheme.radiusXXLarge),
+                        bottomRight: Radius.circular(AppTheme.radiusXXLarge),
                       ),
                     ),
                     child: Column(
                       children: [
-
-                        // ── App Logo ──────────────
+                        // Logo
                         Container(
-                          width:  88,
+                          width: 88,
                           height: 88,
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.15),
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 2,
-                            ),
+                                color: Colors.white.withOpacity(0.3), width: 2),
                           ),
-                          child: const Icon(
-                            Icons.school_rounded,
-                            color: Colors.white,
-                            size:  44,
-                          ),
+                          child: const Icon(Icons.school_rounded,
+                              color: Colors.white, size: 44),
                         ),
                         const SizedBox(height: AppTheme.spacingMedium),
 
-                        // ── App Name ──────────────
+                        // Title
                         Text(
                           'Student Portfolio',
                           style: textTheme.headlineLarge?.copyWith(
-                            color:       Colors.white,
+                            color: Colors.white,
                             letterSpacing: -0.5,
                           ),
                         ),
                         const SizedBox(height: AppTheme.spacingXSmall),
 
-                        // ── Tagline ───────────────
+                        // Tagline
                         Text(
                           'Your academic journey in one place',
                           style: textTheme.bodyMedium?.copyWith(
@@ -404,24 +395,18 @@ class _LoginPageState extends State<LoginPage>
                         ),
                         const SizedBox(height: AppTheme.spacingXLarge),
 
-                        // ── Stats Row ─────────────
+                        // Stats
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppTheme.spacingMedium,
-                            vertical:   AppTheme.spacingMedium,
-                          ),
+                          padding: const EdgeInsets.all(AppTheme.spacingMedium),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusLarge,
-                            ),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusLarge),
                             border: Border.all(
-                              color: Colors.white.withOpacity(0.2),
-                            ),
+                                color: Colors.white.withOpacity(0.2)),
                           ),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceEvenly,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               _statItem('16+', 'Certificates'),
                               _statDivider(),
@@ -431,165 +416,114 @@ class _LoginPageState extends State<LoginPage>
                             ],
                           ),
                         ),
-
-                      ],
-                    ),
-                  ),
-
-                  // ── Form Section ─────────────────
-                  Padding(
-                    padding: const EdgeInsets.all(AppTheme.spacingLarge),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        const SizedBox(height: AppTheme.spacingSmall),
-
-                        // ── Welcome Text ──────────
-                        Text(
-                          'Welcome Back!',
-                          style: textTheme.headlineLarge,
-                        ),
-                        const SizedBox(height: AppTheme.spacingXSmall),
-                        Text(
-                          'Login with your college email to continue',
-                          style: textTheme.bodyMedium,
-                        ),
-                        const SizedBox(height: AppTheme.spacingXLarge),
-
-                        // ── Email Input — M3 ──────
-                        TextField(
-                          controller:   _emailController,
-                          focusNode:    _emailFocus,
-                          keyboardType: TextInputType.emailAddress,
-                          onChanged:    _validateEmail,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted:  (_) => _sendOtp(),
-                          style: textTheme.bodyLarge,
-                          decoration: InputDecoration(
-                            labelText: 'Email Address',
-                            hintText:  'example@college.edu',
-                            prefixIcon: Icon(
-                              Icons.email_outlined,
-                              color: _isEmailValid
-                                  ? AppTheme.accentGreen
-                                  : colorScheme.onSurfaceVariant,
-                            ),
-                            suffixIcon: _isEmailValid
-                                ? const Icon(
-                                    Icons.check_circle_rounded,
-                                    color: AppTheme.accentGreen,
-                                  )
-                                : null,
-                            errorText: _errorText.isNotEmpty
-                                ? _errorText
-                                : null,
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                AppTheme.radiusMedium,
-                              ),
-                              borderSide: BorderSide(
-                                color: _isEmailValid
-                                    ? AppTheme.accentGreen
-                                    : colorScheme.primary,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: AppTheme.spacingXLarge),
-
-                        // ── Send OTP Button — M3 ──
-                        Consumer<WalletProvider>(
-                          builder: (context, walletProvider, child) {
-                            return FilledButton(
-                              onPressed: walletProvider.isLoading ? null : _sendOtp,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _isEmailValid
-                                    ? colorScheme.primary
-                                    : colorScheme.surfaceVariant,
-                                foregroundColor: _isEmailValid
-                                    ? colorScheme.onPrimary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                              child: walletProvider.isLoading
-                                  ? const SizedBox(
-                                      width:  22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: const [
-                                        Icon(
-                                          Icons.send_rounded,
-                                          size: 18,
-                                        ),
-                                        SizedBox(width: AppTheme.spacingSmall),
-                                        Text('Send OTP'),
-                                      ],
-                                    ),
-                            );
-                          },
-                        ),
                         const SizedBox(height: AppTheme.spacingLarge),
 
-                        // ── Demo Hint — M3 Card ───
-                        Card(
-                          color: colorScheme.primaryContainer,
-                          child: Padding(
-                            padding: const EdgeInsets.all(
-                              AppTheme.spacingMedium,
+                        // TabBar
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius:
+                                BorderRadius.circular(AppTheme.radiusMedium),
+                          ),
+                          child: TabBar(
+                            controller: _tabController,
+                            indicator: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius:
+                                  BorderRadius.circular(AppTheme.radiusMedium),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.tips_and_updates_rounded,
-                                  color: colorScheme.onPrimaryContainer,
-                                  size: 20,
-                                ),
-                                const SizedBox(
-                                  width: AppTheme.spacingSmall,
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Demo Mode',
-                                        style: textTheme.labelLarge
-                                            ?.copyWith(
-                                          color: colorScheme
-                                              .onPrimaryContainer,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Enter any valid email and use OTP: 1234',
-                                        style: textTheme.bodySmall
-                                            ?.copyWith(
-                                          color: colorScheme
-                                              .onPrimaryContainer
-                                              .withOpacity(0.8),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                            labelColor: colorScheme.primary,
+                            unselectedLabelColor: Colors.white,
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            tabs: const [
+                              Tab(
+                                  icon: Icon(Icons.email_rounded, size: 18),
+                                  text: 'Email'),
+                              Tab(
+                                  icon: Icon(Icons.qr_code_scanner_rounded,
+                                      size: 18),
+                                  text: 'QR Scan'),
+                            ],
                           ),
                         ),
-
                       ],
                     ),
                   ),
 
+                  // ── Action Section ────────────────
+                  Container(
+                    height: 380, // Fixed height for TabBarView
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Tab 1: Email
+                        Padding(
+                          padding: const EdgeInsets.all(AppTheme.spacingLarge),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Welcome Back!',
+                                  style: textTheme.headlineMedium),
+                              const SizedBox(height: AppTheme.spacingXSmall),
+                              Text('Login with your college email to continue',
+                                  style: textTheme.bodyMedium),
+                              const SizedBox(height: AppTheme.spacingXLarge),
+                              _buildEmailField(context),
+                              const SizedBox(height: AppTheme.spacingXLarge),
+                              _buildSendOtpButton(context),
+                              const SizedBox(height: AppTheme.spacingLarge),
+                              _buildDemoHint(context),
+                            ],
+                          ),
+                        ),
+
+                        // Tab 2: QR
+                        Padding(
+                          padding: const EdgeInsets.all(AppTheme.spacingLarge),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: AppTheme.spacingLarge),
+                              Container(
+                                padding:
+                                    const EdgeInsets.all(AppTheme.spacingLarge),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primaryContainer,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.qr_code_scanner_rounded,
+                                    size: 64,
+                                    color: colorScheme.onPrimaryContainer),
+                              ),
+                              const SizedBox(height: AppTheme.spacingXLarge),
+                              Text('Sync from Web',
+                                  style: textTheme.headlineMedium),
+                              const SizedBox(height: AppTheme.spacingSmall),
+                              Text(
+                                  'Scan the QR code displayed on your \nweb dashboard to login instantly.',
+                                  style: textTheme.bodyMedium,
+                                  textAlign: TextAlign.center),
+                              const SizedBox(height: AppTheme.spacingXLarge),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              const QRScannerPage()),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.camera_alt_rounded),
+                                  label: const Text('Open QR Scanner'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -600,6 +534,129 @@ class _LoginPageState extends State<LoginPage>
   }
 
   // ── Stat Item Widget ───────────────────────────
+  Widget _buildEmailField(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return TextField(
+      controller:   _emailController,
+      focusNode:    _emailFocus,
+      keyboardType: TextInputType.emailAddress,
+      onChanged:    _validateEmail,
+      textInputAction: TextInputAction.done,
+      onSubmitted:  (_) => _sendOtp(),
+      style: textTheme.bodyLarge,
+      decoration: InputDecoration(
+        labelText: 'Email Address',
+        hintText:  'example@college.edu',
+        prefixIcon: Icon(
+          Icons.email_outlined,
+          color: _isEmailValid
+              ? AppTheme.accentGreen
+              : colorScheme.onSurfaceVariant,
+        ),
+        suffixIcon: _isEmailValid
+            ? const Icon(
+                Icons.check_circle_rounded,
+                color: AppTheme.accentGreen,
+              )
+            : null,
+        errorText: _errorText.isNotEmpty
+            ? _errorText
+            : null,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(
+            AppTheme.radiusMedium,
+          ),
+          borderSide: BorderSide(
+            color: _isEmailValid
+                ? AppTheme.accentGreen
+                : colorScheme.primary,
+            width: 2,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSendOtpButton(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Consumer<WalletProvider>(
+      builder: (context, walletProvider, child) {
+        return FilledButton(
+          onPressed: walletProvider.isLoading ? null : _sendOtp,
+          style: FilledButton.styleFrom(
+            backgroundColor: _isEmailValid
+                ? colorScheme.primary
+                : colorScheme.surfaceVariant,
+            foregroundColor: _isEmailValid
+                ? colorScheme.onPrimary
+                : colorScheme.onSurfaceVariant,
+            minimumSize: const Size(double.infinity, 54),
+          ),
+          child: walletProvider.isLoading
+              ? const SizedBox(
+                  width:  22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
+                )
+              : Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.center,
+                  children: const [
+                    Icon( Icons.send_rounded, size: 18 ),
+                    SizedBox(width: AppTheme.spacingSmall),
+                    Text('Send OTP'),
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDemoHint(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      color: colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all( AppTheme.spacingMedium ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.tips_and_updates_rounded,
+              color: colorScheme.onPrimaryContainer,
+              size: 20,
+            ),
+            const SizedBox( width: AppTheme.spacingSmall ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Demo Mode',
+                    style: textTheme.labelLarge?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Enter any valid email and use OTP: 1234',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onPrimaryContainer.withOpacity(0.8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _statItem(String value, String label) {
     return Column(
       children: [
