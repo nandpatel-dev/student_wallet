@@ -4,6 +4,9 @@ import 'package:student_app/core/theme/app_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/student/presentation/pages/certificates_page.dart';
 import 'package:student_app/features/student/presentation/pages/profile_page.dart';
+import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
+import 'package:intl/intl.dart';
 
 // ─────────────────────────────────────────────────
 // DASHBOARD WRAPPER — M3 NavigationBar
@@ -81,6 +84,14 @@ class _DashboardPageState extends State<DashboardPage> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<WalletProvider>(context, listen: false).loadWallet();
+    });
+  }
+
+  @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
@@ -91,6 +102,8 @@ class _DashboardPageState extends State<DashboardPage> {
     final colorScheme   = Theme.of(context).colorScheme;
     final textTheme     = Theme.of(context).textTheme;
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final walletProvider = Provider.of<WalletProvider>(context);
+    final walletData = walletProvider.walletData;
     final isDark        = themeProvider.isDarkMode;
 
     return Scaffold(
@@ -144,77 +157,67 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
 
-      body: Scrollbar(
-        controller:    _scrollController,
-        thumbVisibility: true,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          padding:    const EdgeInsets.all(AppTheme.spacingMedium),
+      body: walletProvider.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : walletProvider.error != null
+              ? Center(child: Text('Error: ${walletProvider.error}'))
+              : Scrollbar(
+                  controller:    _scrollController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    padding:    const EdgeInsets.all(AppTheme.spacingMedium),
 
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
 
-            // ── Greeting Card ──────────────────
-            _buildGreetingCard(context),
-            const SizedBox(height: AppTheme.spacingLarge),
+                      // ── Greeting Card ──────────────────
+                      _buildGreetingCard(context, walletData),
+                      const SizedBox(height: AppTheme.spacingLarge),
 
-            // ── Stats Section ──────────────────
-            Text(
-              'Overview',
-              style: textTheme.titleLarge,
-            ),
-            const SizedBox(height: AppTheme.spacingSmall),
-            _buildStatsGrid(context),
-            const SizedBox(height: AppTheme.spacingLarge),
+                      // ── Stats Section ──────────────────
+                      Text(
+                        'Overview',
+                        style: textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: AppTheme.spacingSmall),
+                      _buildStatsGrid(context, walletData),
+                      const SizedBox(height: AppTheme.spacingLarge),
 
-            // ── Academic Performance ───────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Academic Performance',
-                  style: textTheme.titleLarge,
+                      // ── Recent Activity ────────────────
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Recent Activity',
+                            style: textTheme.titleLarge,
+                          ),
+                          TextButton(
+                            onPressed: () {},
+                            child: const Text('See All'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppTheme.spacingSmall),
+                      _buildRecentActivity(context, walletData),
+                      const SizedBox(height: AppTheme.spacingLarge),
+
+                    ],
+                  ),
                 ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text('See All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spacingSmall),
-            _buildPerformanceList(context),
-            const SizedBox(height: AppTheme.spacingLarge),
-
-            // ── Recent Activity ────────────────
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Activity',
-                  style: textTheme.titleLarge,
-                ),
-                TextButton(
-                  onPressed: () {},
-                  child: const Text('See All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppTheme.spacingSmall),
-            _buildRecentActivity(context),
-            const SizedBox(height: AppTheme.spacingLarge),
-
-          ],
-        ),
-      ),
-    ),
-  );
-}
+              ),
+    );
+  }
 
   // ── Greeting Card ────────────────────────────────
-  Widget _buildGreetingCard(BuildContext context) {
+  Widget _buildGreetingCard(BuildContext context, WalletData? data) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme   = Theme.of(context).textTheme;
+    final email = data?.session.email ?? 'Student';
+    final name = data?.certificates.isNotEmpty == true 
+        ? data!.certificates.first.recipientDisplay 
+        : 'Student';
 
     return Container(
       width:   double.infinity,
@@ -230,14 +233,14 @@ class _DashboardPageState extends State<DashboardPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Good Morning 👋',
+                  'Welcome Back 👋',
                   style: textTheme.bodyMedium?.copyWith(
                     color: Colors.white.withOpacity(0.8),
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacingXSmall),
                 Text(
-                  'Raj Patel',
+                  name,
                   style: textTheme.headlineLarge?.copyWith(
                     color: Colors.white,
                   ),
@@ -255,7 +258,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                   child: Text(
-                    'B.Tech CSE — Sem 6',
+                    email,
                     style: textTheme.labelSmall?.copyWith(
                       color:       Colors.white,
                       letterSpacing: 0.3,
@@ -293,38 +296,25 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ── Stats Grid — M3 Cards ────────────────────────
-  Widget _buildStatsGrid(BuildContext context) {
+  Widget _buildStatsGrid(BuildContext context, WalletData? data) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme   = Theme.of(context).textTheme;
+    final certCount = data?.certificates.length ?? 0;
 
     final stats = [
       {
-        'label':     'CGPA',
-        'value':     '8.7',
-        'icon':      Icons.star_rounded,
-        'color':     AppTheme.accentOrange,
-        'container': AppTheme.accentOrange.withOpacity(0.12),
-      },
-      {
-        'label':     'Attendance',
-        'value':     '92%',
-        'icon':      Icons.fact_check_rounded,
-        'color':     AppTheme.accentGreen,
-        'container': AppTheme.accentGreen.withOpacity(0.12),
-      },
-      {
         'label':     'Certificates',
-        'value':     '16',
+        'value':     certCount.toString(),
         'icon':      Icons.workspace_premium_rounded,
         'color':     colorScheme.primary,
         'container': colorScheme.primaryContainer,
       },
       {
-        'label':     'Rank',
-        'value':     '#4',
-        'icon':      Icons.emoji_events_rounded,
-        'color':     AppTheme.accentBlue,
-        'container': AppTheme.accentBlue.withOpacity(0.12),
+        'label':     'Status',
+        'value':     data?.session.valid == true ? 'Active' : 'Expired',
+        'icon':      Icons.verified_user_rounded,
+        'color':     AppTheme.accentGreen,
+        'container': AppTheme.accentGreen.withOpacity(0.12),
       },
     ];
 
@@ -388,159 +378,31 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ── Performance List — M3 Cards ──────────────────
-  Widget _buildPerformanceList(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final subjects = [
-      {
-        'subject': 'Data Structures',
-        'marks':   '92/100',
-        'grade':   'A+',
-        'color':   AppTheme.accentGreen,
-        'progress': 0.92,
-      },
-      {
-        'subject': 'Operating Systems',
-        'marks':   '85/100',
-        'grade':   'A',
-        'color':   AppTheme.accentBlue,
-        'progress': 0.85,
-      },
-      {
-        'subject': 'Database Management',
-        'marks':   '78/100',
-        'grade':   'B+',
-        'color':   AppTheme.accentOrange,
-        'progress': 0.78,
-      },
-      {
-        'subject': 'Computer Networks',
-        'marks':   '88/100',
-        'grade':   'A',
-        'color':   colorScheme.primary,
-        'progress': 0.88,
-      },
-    ];
-
-    return Card(
-      child: Column(
-        children: subjects.asMap().entries.map((entry) {
-          final index   = entry.key;
-          final subject = entry.value;
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(AppTheme.spacingMedium),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        // ── Grade Badge ──────────
-                        Container(
-                          width:  40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: (subject['color'] as Color)
-                                .withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(
-                              AppTheme.radiusSmall,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              subject['grade'] as String,
-                              style: textTheme.labelLarge?.copyWith(
-                                color: subject['color'] as Color,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppTheme.spacingSmall),
-                        Expanded(
-                          child: Text(
-                            subject['subject'] as String,
-                            style: textTheme.titleMedium,
-                          ),
-                        ),
-                        Text(
-                          subject['marks'] as String,
-                          style: textTheme.labelLarge?.copyWith(
-                            color: subject['color'] as Color,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppTheme.spacingSmall),
-                    // ── M3 LinearProgressIndicator ──
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusCircle,
-                      ),
-                      child: LinearProgressIndicator(
-                        value:            subject['progress'] as double,
-                        minHeight:        6,
-                        backgroundColor:  (subject['color'] as Color)
-                            .withOpacity(0.12),
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          subject['color'] as Color,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (index != subjects.length - 1)
-                const Divider(height: 1, indent: 16, endIndent: 16),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
 
   // ── Recent Activity — M3 Cards ───────────────────
-  Widget _buildRecentActivity(BuildContext context) {
+  Widget _buildRecentActivity(BuildContext context, WalletData? data) {
     final textTheme   = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
-    final activities = [
-      {
-        'title':    'Certificate Uploaded',
-        'subtitle': 'Flutter Development — Udemy',
-        'time':     'Today, 11:00 AM',
-        'icon':     Icons.upload_file_rounded,
-        'color':    colorScheme.primary,
-      },
-      {
-        'title':    'Attendance Marked',
-        'subtitle': 'Data Structures — Present',
-        'time':     'Today, 9:30 AM',
-        'icon':     Icons.how_to_reg_rounded,
-        'color':    AppTheme.accentGreen,
-      },
-      {
-        'title':    'Result Declared',
-        'subtitle': 'Semester 5 — CGPA 8.7',
-        'time':     'Yesterday',
-        'icon':     Icons.emoji_events_rounded,
-        'color':    AppTheme.accentOrange,
-      },
-      {
-        'title':    'Assignment Submitted',
-        'subtitle': 'Computer Networks — Unit 4',
-        'time':     '18 Jan, 2:00 PM',
-        'icon':     Icons.assignment_turned_in_rounded,
-        'color':    AppTheme.accentBlue,
-      },
-    ];
+    if (data == null || data.certificates.isEmpty) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(AppTheme.spacingLarge),
+          child: Center(child: Text('No certificates found.')),
+        ),
+      );
+    }
+
+    final certificates = data.certificates.take(5).toList();
 
     return Card(
       child: Column(
-        children: activities.asMap().entries.map((entry) {
+        children: certificates.asMap().entries.map((entry) {
           final index    = entry.key;
-          final activity = entry.value;
+          final cert = entry.value;
+          final date = DateTime.tryParse(cert.issuedAt);
+          final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
+
           return Column(
             children: [
               ListTile(
@@ -548,31 +410,31 @@ class _DashboardPageState extends State<DashboardPage> {
                   width:  44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: (activity['color'] as Color).withOpacity(0.12),
+                    color: colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(
                       AppTheme.radiusMedium,
                     ),
                   ),
                   child: Icon(
-                    activity['icon'] as IconData,
-                    color: activity['color'] as Color,
+                    Icons.card_membership_rounded,
+                    color: colorScheme.primary,
                     size:  22,
                   ),
                 ),
                 title: Text(
-                  activity['title'] as String,
+                  cert.templateName,
                   style: textTheme.titleMedium,
                 ),
                 subtitle: Text(
-                  activity['subtitle'] as String,
+                  cert.issuerName ?? 'Unknown Issuer',
                   style: textTheme.bodyMedium,
                 ),
                 trailing: Text(
-                  activity['time'] as String,
+                  formattedDate,
                   style: textTheme.bodySmall,
                 ),
               ),
-              if (index != activities.length - 1)
+              if (index != certificates.length - 1)
                 const Divider(height: 1, indent: 72, endIndent: 16),
             ],
           );

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/app_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/dashboard/presentation/pages/dashboard_page.dart';
+import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,9 +22,7 @@ class _LoginPageState extends State<LoginPage>
   final FocusNode _emailFocus                  = FocusNode();
 
   // ── State ──────────────────────────────────────
-  final String _dummyOtp  = '1234';
   bool _isEmailValid      = false;
-  bool _isLoading         = false;
   String _errorText       = '';
 
   // ── Animation ──────────────────────────────────
@@ -78,10 +77,17 @@ class _LoginPageState extends State<LoginPage>
       return;
     }
     _emailFocus.unfocus();
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    setState(() => _isLoading = false);
-    if (mounted) _showOtpBottomSheet();
+    
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final success = await walletProvider.sendOtp(_emailController.text);
+    
+    if (success) {
+      if (mounted) _showOtpBottomSheet();
+    } else {
+      if (mounted) {
+        setState(() => _errorText = walletProvider.error ?? 'Failed to send OTP');
+      }
+    }
   }
 
   // ── OTP Bottom Sheet — M3 ──────────────────────
@@ -96,6 +102,8 @@ class _LoginPageState extends State<LoginPage>
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final walletProvider = Provider.of<WalletProvider>(context);
+
             return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -157,7 +165,7 @@ class _LoginPageState extends State<LoginPage>
 
                     // ── Subtitle ─────────────────
                     Text(
-                      'Enter the 4-digit OTP sent to',
+                      'Enter the 6-digit OTP sent to',
                       style: Theme.of(context)
                           .textTheme
                           .bodyMedium,
@@ -181,7 +189,7 @@ class _LoginPageState extends State<LoginPage>
                     TextField(
                       controller:   _otpController,
                       keyboardType: TextInputType.number,
-                      maxLength:    4,
+                      maxLength:    6,
                       textAlign:    TextAlign.center,
                       autofocus:    true,
                       inputFormatters: [
@@ -191,19 +199,19 @@ class _LoginPageState extends State<LoginPage>
                           .textTheme
                           .displayLarge
                           ?.copyWith(
-                            letterSpacing: 20,
+                            letterSpacing: 10,
                             color: Theme.of(context)
                                 .colorScheme
                                 .primary,
                           ),
                       decoration: InputDecoration(
                         counterText: '',
-                        hintText:    '· · · ·',
+                        hintText:    '· · · · · ·',
                         hintStyle: Theme.of(context)
                             .textTheme
                             .displayLarge
                             ?.copyWith(
-                              letterSpacing: 20,
+                              letterSpacing: 10,
                               color: AppTheme.outlineColor(context),
                             ),
                       ),
@@ -213,7 +221,7 @@ class _LoginPageState extends State<LoginPage>
                     ),
 
                     // ── Error Text ───────────────
-                    if (dialogError.isNotEmpty) ...[
+                    if (walletProvider.error != null || dialogError.isNotEmpty) ...[
                       const SizedBox(height: AppTheme.spacingSmall),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -225,7 +233,7 @@ class _LoginPageState extends State<LoginPage>
                           ),
                           const SizedBox(width: AppTheme.spacingXSmall),
                           Text(
-                            dialogError,
+                            dialogError.isNotEmpty ? dialogError : walletProvider.error!,
                             style: Theme.of(context)
                                 .textTheme
                                 .bodySmall
@@ -242,22 +250,26 @@ class _LoginPageState extends State<LoginPage>
 
                     // ── Verify Button — M3 ───────
                     FilledButton(
-                      onPressed: () {
-                        if (_otpController.text == _dummyOtp) {
-                          Navigator.pop(context);
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const DashboardWrapper(),
-                            ),
-                          );
-                        } else {
-                          setSheetState(() {
-                            dialogError = 'Incorrect OTP. Hint: 1234';
-                          });
+                      onPressed: walletProvider.isLoading ? null : () async {
+                        final success = await walletProvider.verifyOtp(
+                          _emailController.text, 
+                          _otpController.text
+                        );
+                        if (success) {
+                          if (mounted) {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const DashboardWrapper(),
+                              ),
+                            );
+                          }
                         }
                       },
-                      child: const Text('Verify & Continue'),
+                      child: walletProvider.isLoading 
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Verify & Continue'),
                     ),
                     const SizedBox(height: AppTheme.spacingSmall),
 
@@ -488,37 +500,41 @@ class _LoginPageState extends State<LoginPage>
                         const SizedBox(height: AppTheme.spacingXLarge),
 
                         // ── Send OTP Button — M3 ──
-                        FilledButton(
-                          onPressed: _isLoading ? null : _sendOtp,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: _isEmailValid
-                                ? colorScheme.primary
-                                : colorScheme.surfaceVariant,
-                            foregroundColor: _isEmailValid
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurfaceVariant,
-                          ),
-                          child: _isLoading
-                              ? SizedBox(
-                                  width:  22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: colorScheme.onPrimary,
-                                  ),
-                                )
-                              : Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
-                                  children: const [
-                                    Icon(
-                                      Icons.send_rounded,
-                                      size: 18,
+                        Consumer<WalletProvider>(
+                          builder: (context, walletProvider, child) {
+                            return FilledButton(
+                              onPressed: walletProvider.isLoading ? null : _sendOtp,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: _isEmailValid
+                                    ? colorScheme.primary
+                                    : colorScheme.surfaceVariant,
+                                foregroundColor: _isEmailValid
+                                    ? colorScheme.onPrimary
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                              child: walletProvider.isLoading
+                                  ? const SizedBox(
+                                      width:  22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(
+                                          Icons.send_rounded,
+                                          size: 18,
+                                        ),
+                                        SizedBox(width: AppTheme.spacingSmall),
+                                        Text('Send OTP'),
+                                      ],
                                     ),
-                                    SizedBox(width: AppTheme.spacingSmall),
-                                    Text('Send OTP'),
-                                  ],
-                                ),
+                            );
+                          },
                         ),
                         const SizedBox(height: AppTheme.spacingLarge),
 

@@ -1,9 +1,10 @@
-import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:student_app/core/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
+import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 
 class CertificatesPage extends StatefulWidget {
   const CertificatesPage({super.key});
@@ -24,168 +25,9 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── Filter List ────────────────────────────────
   final List<String> _filters = [
     'All',
-    'Technical',
-    'Academic',
-    'Sports',
-    'Extra',
-  ];
-
-  // ── Certificate Data ───────────────────────────
-  final List<Map<String, dynamic>> _certificates = [
-    {
-      'title':    'Flutter Development',
-      'issuer':   'Udemy',
-      'date':     '15 Jan 2025',
-      'category': 'Technical',
-      'icon':     Icons.phone_android_rounded,
-      'color':    AppTheme.primaryColor,
-      'grade':    'Distinction',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Python Programming',
-      'issuer':   'Coursera',
-      'date':     '10 Dec 2024',
-      'category': 'Technical',
-      'icon':     Icons.code_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'Merit',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Web Development',
-      'issuer':   'freeCodeCamp',
-      'date':     '20 Nov 2024',
-      'category': 'Technical',
-      'icon':     Icons.web_rounded,
-      'color':    AppTheme.accentGreen,
-      'grade':    'Distinction',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'UI/UX Design',
-      'issuer':   'Google',
-      'date':     '01 Nov 2024',
-      'category': 'Technical',
-      'icon':     Icons.design_services_rounded,
-      'color':    AppTheme.primaryColor,
-      'grade':    'Merit',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Leaving Certificate',
-      'issuer':   'GTU University',
-      'date':     '01 Jun 2021',
-      'category': 'Academic',
-      'icon':     Icons.school_rounded,
-      'color':    AppTheme.primaryColor,
-      'grade':    'Official',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Semester 1 Marksheet',
-      'issuer':   'GTU University',
-      'date':     '15 Mar 2022',
-      'category': 'Academic',
-      'icon':     Icons.description_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'CGPA 8.2',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Semester 2 Marksheet',
-      'issuer':   'GTU University',
-      'date':     '20 Aug 2022',
-      'category': 'Academic',
-      'icon':     Icons.description_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'CGPA 8.4',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Semester 3 Marksheet',
-      'issuer':   'GTU University',
-      'date':     '18 Mar 2023',
-      'category': 'Academic',
-      'icon':     Icons.description_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'CGPA 8.5',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Semester 4 Marksheet',
-      'issuer':   'GTU University',
-      'date':     '22 Aug 2023',
-      'category': 'Academic',
-      'icon':     Icons.description_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'CGPA 8.6',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Semester 5 Marksheet',
-      'issuer':   'GTU University',
-      'date':     '10 Mar 2024',
-      'category': 'Academic',
-      'icon':     Icons.description_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    'CGPA 8.7',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Scholarship Certificate',
-      'issuer':   'State Government',
-      'date':     '05 Apr 2024',
-      'category': 'Academic',
-      'icon':     Icons.workspace_premium_rounded,
-      'color':    AppTheme.accentOrange,
-      'grade':    'Merit Based',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Best Student Award',
-      'issuer':   'GTU University',
-      'date':     '05 Dec 2024',
-      'category': 'Academic',
-      'icon':     Icons.emoji_events_rounded,
-      'color':    AppTheme.accentOrange,
-      'grade':    'Gold',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Cricket Tournament',
-      'issuer':   'College Sports Dept',
-      'date':     '10 Nov 2024',
-      'category': 'Sports',
-      'icon':     Icons.sports_cricket_rounded,
-      'color':    AppTheme.accentRed,
-      'grade':    '1st Place',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
-    {
-      'title':    'Science Exhibition',
-      'issuer':   'State Board',
-      'date':     '15 Oct 2024',
-      'category': 'Extra',
-      'icon':     Icons.science_rounded,
-      'color':    AppTheme.accentBlue,
-      'grade':    '2nd Place',
-      'viewUrl':  'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-      'downloadUrl': 'https://www.w3.org/WAI/WCAG21/Techniques/pdf/pdf-sample.pdf',
-    },
+    'Active',
+    'Revoked',
+    'Frozen',
   ];
 
   @override
@@ -211,17 +53,20 @@ class _CertificatesPageState extends State<CertificatesPage>
   }
 
   // ── Filtered List ──────────────────────────────
-  List<Map<String, dynamic>> get _filteredCertificates {
-    if (_selectedFilter == 'All') return _certificates;
-    return _certificates
-        .where((c) => c['category'] == _selectedFilter)
+  List<WalletCert> get _filteredCertificates {
+    final certs = Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
+    if (_selectedFilter == 'All') return certs;
+    return certs
+        .where((c) => c.lifecycle.state == _selectedFilter)
         .toList();
   }
 
   // ── Summary Counts ─────────────────────────────
-  int _countByCategory(String category) {
-    return _certificates
-        .where((c) => c['category'] == category)
+  int _countByCategory(String state) {
+    final certs = Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
+    if (state == 'All') return certs.length;
+    return certs
+        .where((c) => c.lifecycle.state == state)
         .length;
   }
 
@@ -258,38 +103,11 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── VIEW Certificate ───────────────────────────
   Future<void> _viewCertificate(
     BuildContext context,
-    Map<String, dynamic> cert,
+    WalletCert cert,
   ) async {
-    final title    = cert['title'] as String;
-    final viewUrl  = cert['viewUrl'] as String;
-
+    final viewUrl  = cert.viewUrl;
     try {
-      // First download to temp then open
-      final tempDir  = await getTemporaryDirectory();
-      final fileName = '${title.replaceAll(' ', '_')}_view.pdf';
-      final filePath = '${tempDir.path}/$fileName';
-      final file     = File(filePath);
-
-      // Show loading snackbar
-      _showSnackbar(context, 'Opening $title...');
-
-      // Download if not already cached
-      if (!await file.exists()) {
-        await Dio().download(viewUrl, filePath);
-      }
-
-      // Open the file
-      final result = await OpenFilex.open(filePath);
-
-      if (result.type != ResultType.done) {
-        if (context.mounted) {
-          _showSnackbar(
-            context,
-            'Could not open file. No PDF viewer found.',
-            isError: true,
-          );
-        }
-      }
+      await launchUrl(Uri.parse(viewUrl), mode: LaunchMode.externalApplication);
     } catch (e) {
       if (context.mounted) {
         _showSnackbar(
@@ -304,60 +122,17 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── DOWNLOAD Certificate ───────────────────────
   Future<void> _downloadCertificate(
     BuildContext context,
-    Map<String, dynamic> cert,
+    WalletCert cert,
   ) async {
-    final title       = cert['title'] as String;
-    final downloadUrl = cert['downloadUrl'] as String;
-
-    // Already downloaded check
-    if (_downloaded[title] == true) {
-      _showSnackbar(context, '$title already downloaded!');
-      return;
-    }
-
-    // Set downloading state
-    setState(() => _downloading[title] = true);
-
+    final downloadUrl = cert.downloadUrl;
     try {
-      // Get downloads directory
-      final dir = Platform.isAndroid
-          ? Directory('/storage/emulated/0/Download')
-          : await getApplicationDocumentsDirectory();
-
-      // Create if not exists
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-
-      final fileName = '${title.replaceAll(' ', '_')}.pdf';
-      final filePath = '${dir.path}/$fileName';
-
-      // Download with progress
-      await Dio().download(
-        downloadUrl,
-        filePath,
-        onReceiveProgress: (received, total) {
-          // Progress available here if needed
-        },
-      );
-
-      // Update state
-      if (mounted) {
-        setState(() {
-          _downloading[title] = false;
-          _downloaded[title]  = true;
-        });
-        _showSnackbar(
-          context,
-          '$title downloaded successfully!',
-        );
-      }
+      await launchUrl(Uri.parse(downloadUrl), mode: LaunchMode.externalApplication);
+      _showSnackbar(context, 'Starting download...');
     } catch (e) {
       if (mounted) {
-        setState(() => _downloading[title] = false);
         _showSnackbar(
           context,
-          'Download failed. Please try again.',
+          'Failed to start download.',
           isError: true,
         );
       }
@@ -367,11 +142,13 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── Certificate Detail Bottom Sheet — M3 ──────
   void _showCertificateDetail(
     BuildContext context,
-    Map<String, dynamic> cert,
+    WalletCert cert,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme   = Theme.of(context).textTheme;
-    final title       = cert['title'] as String;
+    final title       = cert.templateName;
+    final date = DateTime.tryParse(cert.issuedAt);
+    final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
 
     showModalBottomSheet(
       context:            context,
@@ -414,13 +191,12 @@ class _CertificatesPageState extends State<CertificatesPage>
                     width:  80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: (cert['color'] as Color)
-                          .withOpacity(0.12),
+                      color: colorScheme.primaryContainer,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      cert['icon'] as IconData,
-                      color: cert['color'] as Color,
+                      Icons.card_membership_rounded,
+                      color: colorScheme.primary,
                       size:  38,
                     ),
                   ),
@@ -436,7 +212,7 @@ class _CertificatesPageState extends State<CertificatesPage>
 
                   // ── Issuer ────────────────────
                   Text(
-                    cert['issuer'] as String,
+                    cert.issuerName ?? 'Unknown Issuer',
                     style: textTheme.bodyMedium,
                   ),
                   const SizedBox(height: AppTheme.spacingLarge),
@@ -449,23 +225,23 @@ class _CertificatesPageState extends State<CertificatesPage>
                       _detailChip(
                         context,
                         label: 'Date',
-                        value: cert['date'] as String,
+                        value: formattedDate,
                         icon:  Icons.calendar_month_rounded,
                         color: AppTheme.accentBlue,
                       ),
                       _detailChip(
                         context,
-                        label: 'Grade',
-                        value: cert['grade'] as String,
-                        icon:  Icons.grade_rounded,
+                        label: 'Status',
+                        value: cert.status,
+                        icon:  Icons.info_outline_rounded,
                         color: AppTheme.accentOrange,
                       ),
                       _detailChip(
                         context,
-                        label: 'Category',
-                        value: cert['category'] as String,
+                        label: 'State',
+                        value: cert.lifecycle.state,
                         icon:  Icons.category_rounded,
-                        color: cert['color'] as Color,
+                        color: colorScheme.primary,
                       ),
                     ],
                   ),
@@ -495,7 +271,7 @@ class _CertificatesPageState extends State<CertificatesPage>
                           width: AppTheme.spacingXSmall,
                         ),
                         Text(
-                          'Verified Certificate',
+                          'Verified on Blockchain (${cert.network ?? 'polygon'})',
                           style: textTheme.labelLarge?.copyWith(
                             color: colorScheme.onPrimaryContainer,
                           ),
@@ -544,42 +320,17 @@ class _CertificatesPageState extends State<CertificatesPage>
                       // ── Download ──────────────
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: isDownloading
-                              ? null
-                              : () async {
-                                  await _downloadCertificate(
-                                    context,
-                                    cert,
-                                  );
-                                  setSheetState(() {});
-                                },
-                          style: FilledButton.styleFrom(
-                            backgroundColor: isDownloaded
-                                ? AppTheme.accentGreen
-                                : null,
+                          onPressed: () async {
+                            await _downloadCertificate(
+                              context,
+                              cert,
+                            );
+                          },
+                          icon: Icon(
+                            Icons.download_rounded,
+                            size: 18,
                           ),
-                          icon: isDownloading
-                              ? const SizedBox(
-                                  width:  16,
-                                  height: 16,
-                                  child:  CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Icon(
-                                  isDownloaded
-                                      ? Icons.check_rounded
-                                      : Icons.download_rounded,
-                                  size: 18,
-                                ),
-                          label: Text(
-                            isDownloading
-                                ? 'Saving...'
-                                : isDownloaded
-                                    ? 'Saved'
-                                    : 'Download',
-                          ),
+                          label: Text('Download'),
                         ),
                       ),
 
@@ -663,11 +414,16 @@ class _CertificatesPageState extends State<CertificatesPage>
                   size:  14,
                 ),
                 const SizedBox(width: AppTheme.spacingXSmall),
-                Text(
-                  '${_certificates.length} Total',
-                  style: textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onPrimaryContainer,
-                  ),
+                Consumer<WalletProvider>(
+                  builder: (context, provider, child) {
+                    final count = provider.walletData?.certificates.length ?? 0;
+                    return Text(
+                      '$count Total',
+                      style: textTheme.labelLarge?.copyWith(
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -732,30 +488,26 @@ class _CertificatesPageState extends State<CertificatesPage>
   // ── Summary Row ─────────────────────────────────
   Widget _buildSummaryRow(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    
     final summary = [
       {
-        'label': 'Technical',
-        'count': _countByCategory('Technical').toString(),
-        'color': AppTheme.primaryColor,
-        'icon':  Icons.code_rounded,
-      },
-      {
-        'label': 'Academic',
-        'count': _countByCategory('Academic').toString(),
-        'color': AppTheme.accentOrange,
-        'icon':  Icons.school_rounded,
-      },
-      {
-        'label': 'Sports',
-        'count': _countByCategory('Sports').toString(),
+        'label': 'Active',
+        'count': _countByCategory('Active').toString(),
         'color': AppTheme.accentGreen,
-        'icon':  Icons.sports_rounded,
+        'icon':  Icons.check_circle_rounded,
       },
       {
-        'label': 'Extra',
-        'count': _countByCategory('Extra').toString(),
+        'label': 'Revoked',
+        'count': _countByCategory('Revoked').toString(),
+        'color': AppTheme.accentRed,
+        'icon':  Icons.cancel_rounded,
+      },
+      {
+        'label': 'Frozen',
+        'count': _countByCategory('Frozen').toString(),
         'color': AppTheme.accentBlue,
-        'icon':  Icons.star_rounded,
+        'icon':  Icons.ac_unit_rounded,
       },
     ];
 
@@ -824,194 +576,97 @@ class _CertificatesPageState extends State<CertificatesPage>
     );
   }
 
-  // ── Certificate Card — M3 ────────────────────────
+  // ── Certificate Card Widget ───────────────────
   Widget _buildCertificateCard(
     BuildContext context,
-    Map<String, dynamic> cert,
+    WalletCert cert,
     int index,
   ) {
-    final textTheme = Theme.of(context).textTheme;
-    final title     = cert['title'] as String;
-    final isDownloading = _downloading[title] ?? false;
-    final isDownloaded  = _downloaded[title]  ?? false;
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme   = Theme.of(context).textTheme;
+    final date = DateTime.tryParse(cert.issuedAt);
+    final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
 
     return Card(
       child: InkWell(
         onTap: () => _showCertificateDetail(context, cert),
-        borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         child: Padding(
           padding: const EdgeInsets.all(AppTheme.spacingMedium),
-          child: Column(
+          child: Row(
             children: [
 
-              // ── Top Row ─────────────────────
-              Row(
+              // ── Icon ──────────────────
+              Container(
+                width:  52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(
+                    AppTheme.radiusMedium,
+                  ),
+                ),
+                child: Icon(
+                  Icons.card_membership_rounded,
+                  color: colorScheme.primary,
+                  size:  24,
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingMedium),
+
+              // ── Details ───────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cert.templateName,
+                      style: textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      cert.issuerName ?? 'Unknown Issuer',
+                      style: textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Trailing ──────────────
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-
-                  // ── Icon ──────────────────
-                  Container(
-                    width:  52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: (cert['color'] as Color)
-                          .withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusMedium,
-                      ),
-                    ),
-                    child: Icon(
-                      cert['icon'] as IconData,
-                      color: cert['color'] as Color,
-                      size:  24,
+                  Text(
+                    formattedDate,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: AppTheme.textSecondary(context),
                     ),
                   ),
-                  const SizedBox(width: AppTheme.spacingMedium),
-
-                  // ── Content ───────────────
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: textTheme.titleMedium,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          cert['issuer'] as String,
-                          style: textTheme.bodyMedium,
-                        ),
-                        const SizedBox(
-                          height: AppTheme.spacingXSmall,
-                        ),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.calendar_today_rounded,
-                              size:  11,
-                              color: AppTheme.textSecondary(context),
-                            ),
-                            const SizedBox(
-                              width: AppTheme.spacingXSmall,
-                            ),
-                            Text(
-                              cert['date'] as String,
-                              style: textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // ── Grade Chip ────────────
+                  const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppTheme.spacingSmall,
-                      vertical:   AppTheme.spacingXSmall,
+                      vertical:   2,
                     ),
                     decoration: BoxDecoration(
-                      color: (cert['color'] as Color)
-                          .withOpacity(0.12),
+                      color: cert.lifecycle.state == 'Active' 
+                          ? AppTheme.accentGreen.withOpacity(0.12)
+                          : AppTheme.accentRed.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(
                         AppTheme.radiusCircle,
                       ),
                     ),
                     child: Text(
-                      cert['grade'] as String,
+                      cert.lifecycle.state,
                       style: textTheme.labelSmall?.copyWith(
-                        color:      cert['color'] as Color,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-
-                ],
-              ),
-
-              // ── Divider ─────────────────────
-              const Padding(
-                padding: EdgeInsets.symmetric(
-                  vertical: AppTheme.spacingSmall,
-                ),
-                child: Divider(height: 1),
-              ),
-
-              // ── Action Buttons Row ───────────
-              Row(
-                children: [
-
-                  // ── View Button ─────────────
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _viewCertificate(
-                        context,
-                        cert,
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppTheme.spacingSmall,
-                        ),
-                        side: BorderSide(
-                          color: (cert['color'] as Color)
-                              .withOpacity(0.5),
-                        ),
-                        foregroundColor: cert['color'] as Color,
-                      ),
-                      icon:  const Icon(
-                        Icons.visibility_rounded,
-                        size: 16,
-                      ),
-                      label: const Text('View'),
-                    ),
-                  ),
-                  const SizedBox(width: AppTheme.spacingSmall),
-
-                  // ── Download Button ──────────
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: isDownloading
-                          ? null
-                          : () => _downloadCertificate(
-                                context,
-                                cert,
-                              ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: AppTheme.spacingSmall,
-                        ),
-                        backgroundColor: isDownloaded
+                        color: cert.lifecycle.state == 'Active'
                             ? AppTheme.accentGreen
-                            : cert['color'] as Color,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: isDownloading
-                          ? const SizedBox(
-                              width:  14,
-                              height: 14,
-                              child:  CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Icon(
-                              isDownloaded
-                                  ? Icons.check_rounded
-                                  : Icons.download_rounded,
-                              size: 16,
-                            ),
-                      label: Text(
-                        isDownloading
-                            ? 'Saving...'
-                            : isDownloaded
-                                ? 'Saved'
-                                : 'Download',
+                            : AppTheme.accentRed,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-
                 ],
               ),
 
@@ -1021,6 +676,7 @@ class _CertificatesPageState extends State<CertificatesPage>
       ),
     );
   }
+
 
   // ── Empty State ──────────────────────────────────
   Widget _buildEmptyState(BuildContext context) {

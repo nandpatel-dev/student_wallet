@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/app_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
+import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -349,6 +350,7 @@ class _ProfilePageState extends State<ProfilePage> {
             FilledButton(
               onPressed: () {
                 Navigator.pop(context);
+                Provider.of<WalletProvider>(context, listen: false).logout();
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
@@ -483,6 +485,14 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildProfileHeroCard(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme   = Theme.of(context).textTheme;
+    final walletProvider = Provider.of<WalletProvider>(context);
+    final data = walletProvider.walletData;
+    
+    final email = data?.session.email ?? 'Student';
+    final name = data?.certificates.isNotEmpty == true 
+        ? data!.certificates.first.recipientDisplay 
+        : 'Student';
+    final certCount = data?.certificates.length ?? 0;
 
     return Container(
       width:   double.infinity,
@@ -510,35 +520,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 child: Center(
                   child: Text(
-                    'RP',
+                    name.substring(0, name.contains(' ') ? 1 : (name.length > 1 ? 2 : name.length)).toUpperCase(),
                     style: textTheme.displayLarge?.copyWith(
                       color:      Colors.white,
                       fontSize:   28,
                       fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right:  0,
-                child: GestureDetector(
-                  onTap: () => _showEditBottomSheet(context),
-                  child: Container(
-                    width:  26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      color:  Colors.white,
-                      shape:  BoxShape.circle,
-                      border: Border.all(
-                        color: colorScheme.primary,
-                        width: 2,
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.edit_rounded,
-                      color: colorScheme.primary,
-                      size:  14,
                     ),
                   ),
                 ),
@@ -549,7 +535,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // ── Name ────────────────────────
           Text(
-            'Raj Patel',
+            name,
             style: textTheme.headlineLarge?.copyWith(
               color: Colors.white,
             ),
@@ -558,34 +544,9 @@ class _ProfilePageState extends State<ProfilePage> {
 
           // ── Email ────────────────────────
           Text(
-            'raj.patel@college.edu',
+            email,
             style: textTheme.bodyMedium?.copyWith(
               color: Colors.white.withOpacity(0.75),
-            ),
-          ),
-          const SizedBox(height: AppTheme.spacingMedium),
-
-          // ── Course Badge ─────────────────
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.spacingMedium,
-              vertical:   AppTheme.spacingXSmall,
-            ),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(
-                AppTheme.radiusCircle,
-              ),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.25),
-              ),
-            ),
-            child: Text(
-              'B.Tech CSE  ·  3rd Year  ·  Sem 6',
-              style: textTheme.labelSmall?.copyWith(
-                color:        Colors.white,
-                letterSpacing: 0.3,
-              ),
             ),
           ),
           const SizedBox(height: AppTheme.spacingMedium),
@@ -595,18 +556,13 @@ class _ProfilePageState extends State<ProfilePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _heroBadge(
-                icon:  Icons.star_rounded,
-                label: 'CGPA 8.7',
-              ),
-              const SizedBox(width: AppTheme.spacingSmall),
-              _heroBadge(
                 icon:  Icons.workspace_premium_rounded,
-                label: '16 Certs',
+                label: '$certCount Certificates',
               ),
               const SizedBox(width: AppTheme.spacingSmall),
               _heroBadge(
-                icon:  Icons.fact_check_rounded,
-                label: '92% Att.',
+                icon:  Icons.verified_user_rounded,
+                label: data?.session.valid == true ? 'Active Session' : 'Expired',
               ),
             ],
           ),
