@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
-import 'package:student_app/core/theme/app_theme.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset;
 import 'package:provider/provider.dart';
+import 'package:student_app/core/theme/ios_theme.dart';
+import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'dart:ui';
 
 class CertificatesPage extends StatefulWidget {
   const CertificatesPage({super.key});
@@ -13,748 +16,180 @@ class CertificatesPage extends StatefulWidget {
   State<CertificatesPage> createState() => _CertificatesPageState();
 }
 
-class _CertificatesPageState extends State<CertificatesPage>
-    with SingleTickerProviderStateMixin {
+class _CertificatesPageState extends State<CertificatesPage> {
+  String _selectedFilter = 'All';
+  final List<String> _filters = ['All', 'Active', 'Revoked', 'Frozen'];
 
-  // ── State ──────────────────────────────────────
-  String _selectedFilter          = 'All';
-  late TabController _tabController;
-  final Map<String, bool> _downloading = {};
-  final Map<String, bool> _downloaded  = {};
-
-  // ── Filter List ────────────────────────────────
-  final List<String> _filters = [
-    'All',
-    'Active',
-    'Revoked',
-    'Frozen',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: _filters.length,
-      vsync:  this,
-    );
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {
-          _selectedFilter = _filters[_tabController.index];
-        });
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  // ── Filtered List ──────────────────────────────
   List<WalletCert> get _filteredCertificates {
     final certs = Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
     if (_selectedFilter == 'All') return certs;
-    return certs
-        .where((c) => c.lifecycle.state == _selectedFilter)
-        .toList();
-  }
-
-  // ── Summary Counts ─────────────────────────────
-  int _countByCategory(String state) {
-    final certs = Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
-    if (state == 'All') return certs.length;
-    return certs
-        .where((c) => c.lifecycle.state == state)
-        .length;
-  }
-
-  // ── Snackbar Helper ────────────────────────────
-  void _showSnackbar(
-    BuildContext context,
-    String message, {
-    bool isError = false,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isError
-                  ? Icons.error_outline_rounded
-                  : Icons.check_circle_rounded,
-              color: Colors.white,
-              size:  18,
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(message)),
-          ],
-        ),
-        backgroundColor: isError
-            ? AppTheme.accentRed
-            : AppTheme.accentGreen,
-        behavior:  SnackBarBehavior.floating,
-        duration:  const Duration(seconds: 3),
-      ),
-    );
+    return certs.where((c) => c.lifecycle.state == _selectedFilter).toList();
   }
 
   // ── VIEW Certificate ───────────────────────────
-  Future<void> _viewCertificate(
-    BuildContext context,
-    WalletCert cert,
-  ) async {
-    final rawUrl  = cert.viewUrl;
-    final viewUrl = rawUrl.contains('localhost') 
-        ? rawUrl.replaceAll('localhost', '192.168.1.3') 
-        : rawUrl;
+  Future<void> _viewCertificate(BuildContext context, WalletCert cert) async {
+    final rawUrl = cert.viewUrl;
+    final viewUrl = rawUrl.contains('localhost') ? rawUrl.replaceAll('localhost', '192.168.1.3') : rawUrl;
     try {
       await launchUrl(Uri.parse(viewUrl), mode: LaunchMode.externalApplication);
     } catch (e) {
-      if (context.mounted) {
-        _showSnackbar(
-          context,
-          'Failed to open certificate.',
-          isError: true,
-        );
-      }
+      if (context.mounted) _showToast(context, 'Failed to open certificate', isError: true);
     }
   }
 
   // ── DOWNLOAD Certificate ───────────────────────
-  Future<void> _downloadCertificate(
-    BuildContext context,
-    WalletCert cert,
-  ) async {
-    final rawUrl      = cert.downloadUrl;
-    final downloadUrl = rawUrl.contains('localhost') 
-        ? rawUrl.replaceAll('localhost', '192.168.1.3') 
-        : rawUrl;
+  Future<void> _downloadCertificate(BuildContext context, WalletCert cert) async {
+    final rawUrl = cert.downloadUrl;
+    final downloadUrl = rawUrl.contains('localhost') ? rawUrl.replaceAll('localhost', '192.168.1.3') : rawUrl;
     try {
       await launchUrl(Uri.parse(downloadUrl), mode: LaunchMode.externalApplication);
-      _showSnackbar(context, 'Starting download...');
+      _showToast(context, 'Starting download...');
     } catch (e) {
-      if (mounted) {
-        _showSnackbar(
-          context,
-          'Failed to start download.',
-          isError: true,
-        );
-      }
+      if (mounted) _showToast(context, 'Failed to start download', isError: true);
     }
   }
 
   // ── VERIFY Certificate ─────────────────────────
-  Future<void> _verifyCertificate(
-    BuildContext context,
-    WalletCert cert,
-  ) async {
+  Future<void> _verifyCertificate(BuildContext context, WalletCert cert) async {
     final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-
-    // 1. Show loading state if needed, or just hit the API
-    _showSnackbar(context, 'Fetching verification link...');
-    
+    _showToast(context, 'Fetching verification link...');
     try {
       final shareUrl = await walletProvider.getShareableUrl(cert.id);
-      
       if (shareUrl != null && shareUrl.isNotEmpty) {
-        // Rewrite localhost if needed (redundant but safe if not handled in provider)
-        final finalUrl = shareUrl.contains('localhost') 
-            ? shareUrl.replaceAll('localhost', '192.168.1.3') // Replace with your server IP
-            : shareUrl;
-
+        final finalUrl = shareUrl.contains('localhost') ? shareUrl.replaceAll('localhost', '192.168.1.3') : shareUrl;
         await launchUrl(Uri.parse(finalUrl), mode: LaunchMode.externalApplication);
       } else {
         throw Exception(walletProvider.error ?? 'Verification URL not found');
       }
     } catch (e) {
-      if (context.mounted) {
-        _showSnackbar(
-          context,
-          "Failed to get verification link: ${e.toString().split('Exception: ').last}",
-          isError: true,
-        );
-      }
+      if (context.mounted) _showToast(context, "Verification failed: ${e.toString().split('Exception: ').last}", isError: true);
     }
   }
 
-  // ── Certificate Detail Bottom Sheet — M3 ──────
-  void _showCertificateDetail(
-    BuildContext context,
-    WalletCert cert,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme   = Theme.of(context).textTheme;
-    final title       = cert.templateName;
-    final date = DateTime.tryParse(cert.issuedAt);
-    final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
-
-    showModalBottomSheet(
-      context:            context,
-      isScrollControlled: true,
-      useSafeArea:        true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppTheme.spacingLarge,
-                AppTheme.spacingSmall,
-                AppTheme.spacingLarge,
-                AppTheme.spacingXLarge,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-
-                  // ── Drag Handle ───────────────
-                  Container(
-                    width:  40,
-                    height: 4,
-                    margin: const EdgeInsets.only(
-                      bottom: AppTheme.spacingLarge,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.outlineColor(context),
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusCircle,
-                      ),
-                    ),
-                  ),
-
-                  // ── Certificate Icon ──────────
-                  Container(
-                    width:  80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.card_membership_rounded,
-                      color: colorScheme.primary,
-                      size:  38,
-                    ),
-                  ),
-                  const SizedBox(height: AppTheme.spacingMedium),
-
-                  // ── Title ─────────────────────
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: AppTheme.spacingXSmall),
-
-                  // ── Issuer ────────────────────
-                  Text(
-                    cert.issuerName ?? 'Unknown Issuer',
-                    style: textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: AppTheme.spacingLarge),
-
-                  // ── Detail Chips Row ──────────
-                  Row(
-                    mainAxisAlignment:
-                        MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _detailChip(
-                        context,
-                        label: 'Date',
-                        value: formattedDate,
-                        icon:  Icons.calendar_month_rounded,
-                        color: AppTheme.accentBlue,
-                      ),
-                      _detailChip(
-                        context,
-                        label: 'Status',
-                        value: cert.status,
-                        icon:  Icons.info_outline_rounded,
-                        color: AppTheme.accentOrange,
-                      ),
-                      _detailChip(
-                        context,
-                        label: 'State',
-                        value: cert.lifecycle.state,
-                        icon:  Icons.category_rounded,
-                        color: colorScheme.primary,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppTheme.spacingLarge),
-
-                  // ── Verified Badge ────────────
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingMedium,
-                      vertical:   AppTheme.spacingSmall,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusCircle,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.verified_rounded,
-                          color: colorScheme.onPrimaryContainer,
-                          size:  16,
-                        ),
-                        const SizedBox(
-                          width: AppTheme.spacingXSmall,
-                        ),
-                        Text(
-                          'Verified on Blockchain (${cert.network ?? 'polygon'})',
-                          style: textTheme.labelLarge?.copyWith(
-                            color: colorScheme.onPrimaryContainer,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppTheme.spacingXLarge),
-
-                  // ── Action Buttons (Grid Layout) ──────────
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          _buildModalButton(
-                            context,
-                            icon: Icons.visibility_rounded,
-                            label: 'View',
-                            color: colorScheme.primary,
-                            isFilled: true,
-                            onPressed: () async {
-                              Navigator.pop(context);
-                              await _viewCertificate(context, cert);
-                            },
-                          ),
-                          const SizedBox(width: AppTheme.spacingSmall),
-                          _buildModalButton(
-                            context,
-                            icon: Icons.download_rounded,
-                            label: 'Download',
-                            color: colorScheme.secondary,
-                            isFilled: false,
-                            onPressed: () async {
-                              await _downloadCertificate(context, cert);
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.spacingSmall),
-                      Row(
-                        children: [
-                          _buildModalButton(
-                            context,
-                            icon: Icons.verified_user_rounded,
-                            label: 'Verify',
-                            color: AppTheme.accentGreen,
-                            isFilled: false,
-                            onPressed: () async {
-                              await _verifyCertificate(context, cert);
-                            },
-                          ),
-                          const SizedBox(width: AppTheme.spacingSmall),
-                          _buildModalButton(
-                            context,
-                            icon: Icons.close_rounded,
-                            label: 'Close',
-                            color: AppTheme.accentRed,
-                            isFilled: false,
-                            isOutlined: true,
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  // ── Helper for Modal Buttons ──────────────────
-  Widget _buildModalButton(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool isFilled,
-    bool isOutlined = false,
-    required VoidCallback onPressed,
-  }) {
-    if (isFilled) {
-      return Expanded(
-        child: FilledButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 18),
-          label: Text(label),
-          style: FilledButton.styleFrom(
-            backgroundColor: color,
-            minimumSize: const Size(0, 48),
-          ),
-        ),
-      );
-    } else if (isOutlined) {
-      return Expanded(
-        child: OutlinedButton.icon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 18, color: color),
-          label: Text(label, style: TextStyle(color: color)),
-          style: OutlinedButton.styleFrom(
-            side: BorderSide(color: color),
-            minimumSize: const Size(0, 48),
-          ),
-        ),
-      );
-    } else {
-      return Expanded(
-        child: FilledButton.tonalIcon(
-          onPressed: onPressed,
-          icon: Icon(icon, size: 18, color: color),
-          label: Text(label, style: TextStyle(color: color)),
-          style: FilledButton.styleFrom(
-            backgroundColor: color.withOpacity(0.12),
-            minimumSize: const Size(0, 48),
-          ),
-        ),
-      );
-    }
-  }
-
-  // ── Detail Chip Widget ─────────────────────────
-  Widget _detailChip(
-    BuildContext context, {
-    required String label,
-    required String value,
-    required IconData icon,
-    required Color color,
-  }) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      children: [
-        Container(
-          width:  52,
-          height: 52,
-          decoration: BoxDecoration(
-            color:        color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          ),
-          child: Icon(icon, color: color, size: 24),
-        ),
-        const SizedBox(height: AppTheme.spacingXSmall),
-        Text(label, style: textTheme.bodySmall),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: textTheme.labelLarge?.copyWith(color: color),
-        ),
-      ],
-    );
+  void _showToast(BuildContext context, String message, {bool isError = false}) {
+    // Simple iOS-style overlay could be added here
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme   = Theme.of(context).textTheme;
-
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor(context),
-
-      // ── M3 AppBar with TabBar ──────────────
-      appBar: AppBar(
-        title: Text(
-          'My Certificates',
-          style: textTheme.titleLarge,
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(
-              right: AppTheme.spacingMedium,
-            ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppTheme.spacingSmall,
-              vertical:   AppTheme.spacingXSmall,
-            ),
-            decoration: BoxDecoration(
-              color: colorScheme.primaryContainer,
-              borderRadius: BorderRadius.circular(
-                AppTheme.radiusCircle,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.workspace_premium_rounded,
-                  color: colorScheme.onPrimaryContainer,
-                  size:  14,
-                ),
-                const SizedBox(width: AppTheme.spacingXSmall),
-                Consumer<WalletProvider>(
-                  builder: (context, provider, child) {
-                    final count = provider.walletData?.certificates.length ?? 0;
-                    return Text(
-                      '$count Total',
-                      style: textTheme.labelLarge?.copyWith(
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
-        bottom: TabBar(
-          controller:          _tabController,
-          isScrollable:        true,
-          tabAlignment:        TabAlignment.start,
-          dividerColor:        Colors.transparent,
-          indicatorSize:       TabBarIndicatorSize.tab,
-          indicatorColor:      colorScheme.primary,
-          labelColor:          colorScheme.primary,
-          unselectedLabelColor: AppTheme.textSecondary(context),
-          labelStyle:          textTheme.labelLarge,
-          unselectedLabelStyle: textTheme.labelLarge,
-          tabs: _filters.map((f) => Tab(text: f)).toList(),
-        ),
-      ),
-
-      body: Column(
+    return CupertinoPageScaffold(
+      backgroundColor: IOSTheme.systemBackground,
+      child: Stack(
         children: [
-
-          // ── Summary Cards Row ──────────────
-          Container(
-            color: AppTheme.surfaceColor(context),
-            padding: const EdgeInsets.all(AppTheme.spacingMedium),
-            child: _buildSummaryRow(context),
-          ),
-
-          // ── Certificate List ───────────────
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _filteredCertificates.isEmpty
-                  ? _buildEmptyState(context)
-                  : ListView.separated(
-                      key: ValueKey(_selectedFilter),
-                      padding: const EdgeInsets.all(
-                        AppTheme.spacingMedium,
+          // Background accents
+          Positioned(top: 100, left: -50, child: _blurCircle(150, IOSTheme.primaryBlue.withOpacity(0.05))),
+          
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              const CupertinoSliverNavigationBar(
+                largeTitle: Text('Certificates'),
+                border: null,
+                backgroundColor: CupertinoColors.systemBackground,
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: IOSTheme.paddingM, vertical: 10),
+                  child: Column(
+                    children: [
+                      // Filter Control
+                      SizedBox(
+                        width: double.infinity,
+                        child: CupertinoSlidingSegmentedControl<String>(
+                          groupValue: _selectedFilter,
+                          onValueChanged: (val) {
+                            if (val != null) setState(() => _selectedFilter = val);
+                          },
+                          children: {
+                            for (var f in _filters)
+                              f: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Text(f, style: const TextStyle(fontSize: 13)),
+                              )
+                          },
+                        ),
                       ),
-                      itemCount: _filteredCertificates.length,
-                      separatorBuilder: (_, __) =>
-                          const SizedBox(
-                            height: AppTheme.spacingSmall,
-                          ),
-                      itemBuilder: (context, index) =>
-                          _buildCertificateCard(
-                        context,
-                        _filteredCertificates[index],
-                        index,
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ),
+              _filteredCertificates.isEmpty
+                  ? const SliverFillRemaining(
+                      child: Center(child: Text('No certificates found', style: TextStyle(color: CupertinoColors.secondaryLabel))),
+                    )
+                  : SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(IOSTheme.paddingM, 0, IOSTheme.paddingM, 80),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final cert = _filteredCertificates[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildCertificateCard(context, cert),
+                            );
+                          },
+                          childCount: _filteredCertificates.length,
+                        ),
                       ),
                     ),
-            ),
+            ],
           ),
-
         ],
       ),
     );
   }
 
-  // ── Summary Row ─────────────────────────────────
-  Widget _buildSummaryRow(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    
-    final summary = [
-      {
-        'label': 'Active',
-        'count': _countByCategory('Active').toString(),
-        'color': AppTheme.accentGreen,
-        'icon':  Icons.check_circle_rounded,
-      },
-      {
-        'label': 'Revoked',
-        'count': _countByCategory('Revoked').toString(),
-        'color': AppTheme.accentRed,
-        'icon':  Icons.cancel_rounded,
-      },
-      {
-        'label': 'Frozen',
-        'count': _countByCategory('Frozen').toString(),
-        'color': AppTheme.accentBlue,
-        'icon':  Icons.ac_unit_rounded,
-      },
-    ];
-
-    return Row(
-      children: summary.asMap().entries.map((entry) {
-        final index = entry.key;
-        final item  = entry.value;
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedFilter = item['label'] as String;
-                _tabController.animateTo(
-                  _filters.indexOf(item['label'] as String),
-                );
-              });
-            },
-            child: Container(
-              margin: EdgeInsets.only(
-                right: index == summary.length - 1
-                    ? 0
-                    : AppTheme.spacingSmall,
-              ),
-              padding: const EdgeInsets.symmetric(
-                vertical:   AppTheme.spacingSmall,
-                horizontal: AppTheme.spacingXSmall,
-              ),
-              decoration: BoxDecoration(
-                color: (item['color'] as Color).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(
-                  AppTheme.radiusMedium,
-                ),
-                border: Border.all(
-                  color: _selectedFilter == item['label']
-                      ? (item['color'] as Color)
-                      : Colors.transparent,
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    item['icon'] as IconData,
-                    color: item['color'] as Color,
-                    size:  18,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    item['count'] as String,
-                    style: textTheme.titleMedium?.copyWith(
-                      color:      item['color'] as Color,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    item['label'] as String,
-                    style: textTheme.bodySmall,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  // ── Certificate Card Widget ───────────────────
-  Widget _buildCertificateCard(
-    BuildContext context,
-    WalletCert cert,
-    int index,
-  ) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme   = Theme.of(context).textTheme;
+  Widget _buildCertificateCard(BuildContext context, WalletCert cert) {
     final date = DateTime.tryParse(cert.issuedAt);
     final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
 
-    return Card(
-      child: InkWell(
-        onTap: () => _showCertificateDetail(context, cert),
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+    return IOSTheme.glassContainer(
+      context: context,
+      padding: EdgeInsets.zero,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: () => _showCertificateDetail(context, cert),
         child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingMedium),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-
-              // ── Icon ──────────────────
               Container(
-                width:  52,
-                height: 52,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(
-                    AppTheme.radiusMedium,
-                  ),
+                  color: IOSTheme.primaryBlue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.card_membership_rounded,
-                  color: colorScheme.primary,
-                  size:  24,
-                ),
+                child: const Icon(CupertinoIcons.doc_fill, color: IOSTheme.primaryBlue, size: 22),
               ),
-              const SizedBox(width: AppTheme.spacingMedium),
-
-              // ── Details ───────────────
+              const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       cert.templateName,
-                      style: textTheme.titleMedium,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: CupertinoColors.label),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 2),
                     Text(
-                      cert.issuerName ?? 'Unknown Issuer',
-                      style: textTheme.bodySmall,
+                      cert.issuerName ?? 'JustyfAI',
+                      style: const TextStyle(fontSize: 13, color: CupertinoColors.secondaryLabel),
                     ),
                   ],
                 ),
               ),
-
-              // ── Trailing ──────────────
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    formattedDate,
-                    style: textTheme.labelSmall?.copyWith(
-                      color: AppTheme.textSecondary(context),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppTheme.spacingSmall,
-                      vertical:   2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cert.lifecycle.state == 'Active' 
-                          ? AppTheme.accentGreen.withOpacity(0.12)
-                          : AppTheme.accentRed.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(
-                        AppTheme.radiusCircle,
-                      ),
-                    ),
-                    child: Text(
-                      cert.lifecycle.state,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: cert.lifecycle.state == 'Active'
-                            ? AppTheme.accentGreen
-                            : AppTheme.accentRed,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                  Text(formattedDate, style: const TextStyle(fontSize: 11, color: CupertinoColors.secondaryLabel)),
+                  const SizedBox(height: 5),
+                  _statusBadge(cert.lifecycle.state),
                 ],
               ),
-
             ],
           ),
         ),
@@ -762,56 +197,88 @@ class _CertificatesPageState extends State<CertificatesPage>
     );
   }
 
+  Widget _statusBadge(String state) {
+    final color = state == 'Active' ? CupertinoColors.systemGreen : CupertinoColors.systemRed;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Text(
+        state,
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+      ),
+    );
+  }
 
-  // ── Empty State ──────────────────────────────────
-  Widget _buildEmptyState(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme   = Theme.of(context).textTheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppTheme.spacingXLarge),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width:  100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                shape: BoxShape.circle,
+  void _showCertificateDetail(BuildContext context, WalletCert cert) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: CupertinoActionSheet(
+          title: Text(cert.templateName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          message: Text('Issued by ${cert.issuerName ?? 'JustyfAI'}'),
+          actions: [
+            CupertinoActionSheetAction(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(CupertinoIcons.eye, size: 18),
+                  SizedBox(width: 10),
+                  Text('View Certificate'),
+                ],
               ),
-              child: Icon(
-                Icons.card_membership_rounded,
-                size:  48,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(height: AppTheme.spacingLarge),
-            Text(
-              'No Certificates Found',
-              style: textTheme.headlineMedium,
-            ),
-            const SizedBox(height: AppTheme.spacingSmall),
-            Text(
-              'No certificates in $_selectedFilter yet',
-              style:     textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppTheme.spacingXLarge),
-            FilledButton.icon(
               onPressed: () {
-                setState(() {
-                  _selectedFilter = 'All';
-                  _tabController.animateTo(0);
-                });
+                Navigator.pop(context);
+                _viewCertificate(context, cert);
               },
-              icon:  const Icon(Icons.list_rounded),
-              label: const Text('View All Certificates'),
+            ),
+            CupertinoActionSheetAction(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(CupertinoIcons.cloud_download, size: 18),
+                  SizedBox(width: 10),
+                  Text('Download (PDF)'),
+                ],
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _downloadCertificate(context, cert);
+              },
+            ),
+            CupertinoActionSheetAction(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Icon(CupertinoIcons.checkmark_seal, size: 18),
+                  SizedBox(width: 10),
+                  Text('Verify Authenticity'),
+                ],
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _verifyCertificate(context, cert);
+              },
             ),
           ],
+          cancelButton: CupertinoActionSheetAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _blurCircle(double size, Color color) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

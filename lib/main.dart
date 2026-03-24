@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:student_app/core/theme/app_theme.dart';
+import 'package:student_app/core/theme/ios_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
@@ -81,7 +83,7 @@ class _MyAppState extends State<MyApp> {
         final success = await walletProvider.handleDeepLink(token);
         if (success) {
           _navigatorKey.currentState?.pushReplacement(
-            MaterialPageRoute(builder: (_) => const DashboardWrapper()),
+            CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
           );
         }
       }
@@ -99,21 +101,18 @@ class _MyAppState extends State<MyApp> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark        = themeProvider.isDarkMode;
 
-    return MaterialApp(
+    return CupertinoApp(
       navigatorKey: _navigatorKey,
-      // ── App Info ──────────────────────────────
       title:                    'Student Portfolio',
       debugShowCheckedModeBanner: false,
 
-      // ── Material 3 Themes ─────────────────────
-      theme:     AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+      // ── Cupertino Themes ─────────────────────
+      theme:     isDark ? IOSTheme.darkTheme : IOSTheme.lightTheme,
 
       // ── Entry Point ───────────────────────────
       home: const LoginPage(),
 
-      // ── Page Transitions — M3 style ───────────
+      // ── Page Transitions — iOS style ───────────
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
