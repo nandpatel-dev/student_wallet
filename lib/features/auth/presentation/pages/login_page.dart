@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Icons, Colors, Image, Curves, BoxShadow, Offset;
+import 'package:flutter/material.dart' show Icons, Colors, Image, Curves, BoxShadow, Offset, Material;
 import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +34,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 200),
     );
     _fadeAnim = CurvedAnimation(
       parent: _animController,
@@ -70,7 +70,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
   Future<void> _sendOtp() async {
     if (!_isEmailValid) {
-      setState(() => _errorText = 'Please enter a valid email address');
+      _showToast('Please enter a valid institution email', isError: true);
       return;
     }
     _emailFocus.unfocus();
@@ -79,10 +79,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final success = await walletProvider.sendOtp(_emailController.text);
 
     if (success) {
-      if (mounted) _showOtpDialog();
+      if (mounted) {
+        _showToast('OTP sent successfully to your email');
+        _showOtpDialog();
+      }
     } else {
       if (mounted) {
-        setState(() => _errorText = walletProvider.error ?? 'Failed to send OTP');
+        final error = walletProvider.error ?? 'Failed to send OTP';
+        setState(() => _errorText = error);
+        _showToast(error, isError: true);
       }
     }
   }
@@ -106,10 +111,25 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               textAlign: TextAlign.center,
               autofocus: true,
               placeholder: '· · · · · ·',
-              style: const TextStyle(fontSize: 32, letterSpacing: 8, color: IOSTheme.primaryBlue),
+              placeholderStyle: TextStyle(
+                fontSize: 32, 
+                letterSpacing: 8, 
+                color: (Provider.of<ThemeProvider>(context, listen: false).isDarkMode ? Colors.white : Colors.black).withOpacity(0.2),
+              ),
+              style: TextStyle(
+                fontSize: 32, 
+                letterSpacing: 8, 
+                fontWeight: FontWeight.bold,
+                color: Provider.of<ThemeProvider>(context, listen: false).isDarkMode 
+                    ? const Color(0xFFC8A27C) // Caramel Gold (Dark Coffee Theme)
+                    : const Color(0xFF78350F), // Deep Amber/Brown (Light Beige Theme)
+              ),
               decoration: BoxDecoration(
-                color: CupertinoColors.secondarySystemBackground.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
+                color: CupertinoColors.secondarySystemBackground.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: (Provider.of<ThemeProvider>(context, listen: false).isDarkMode ? Colors.white : Colors.black).withOpacity(0.1),
+                ),
               ),
             ),
           ],
@@ -122,11 +142,16 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     _emailController.text, _otpController.text);
                 if (success) {
                   if (mounted) {
+                    _showToast('Verification successful! Welcome back.');
                     Navigator.pop(context);
                     Navigator.pushReplacement(
                       context,
                       CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
                     );
+                  }
+                } else {
+                  if (mounted) {
+                    _showToast(walletProvider.error ?? 'Invalid OTP. Please try again.', isError: true);
                   }
                 }
               },
@@ -157,29 +182,28 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           // ── Premium Gradient Background ──
           Positioned.fill(
             child: AnimatedContainer(
-              duration: const Duration(seconds: 1),
+              duration: const Duration(milliseconds: 300),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: isDark
-                      ? [const Color(0xFF1A1A2E), const Color(0xFF16213E), const Color(0xFF0F3460)]
-                      : [const Color(0xFF2193b0), const Color(0xFF6dd5ed), const Color(0xFF2193b0)],
+                      ? [const Color(0xFF0F0E0D), const Color(0xFF1C1A18), const Color(0xFF0F0E0D)] // Dark Coffee
+                      : [const Color(0xFFF5F5F4), const Color(0xFFF5F5DC), const Color(0xFFE7E5E4)], // Light Grey / Beige
                 ),
               ),
             ),
           ),
 
-          // ── Animated Geometric Shapes (Glass Effect) ──
           Positioned(
             top: -50,
             left: -50,
-            child: _blurCircle(300, Colors.blue.withOpacity(0.3)),
+            child: _blurCircle(300, isDark ? Colors.blue.withOpacity(0.3) : Colors.orange.withOpacity(0.15)),
           ),
           Positioned(
             bottom: 50,
             right: -80,
-            child: _blurCircle(400, Colors.purple.withOpacity(0.2)),
+            child: _blurCircle(400, isDark ? Colors.purple.withOpacity(0.2) : Colors.brown.withOpacity(0.1)),
           ),
 
           SafeArea(
@@ -205,15 +229,15 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               height: 80,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
+                                color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.15),
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                                border: Border.all(color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.2)),
                               ),
                               child: Image.asset(
                                 'assets/images/logo.png',
-                                errorBuilder: (_, __, ___) => const Icon(
+                                errorBuilder: (_, __, ___) => Icon(
                                   Icons.school_rounded,
-                                  color: Colors.white,
+                                  color: isDark ? const Color(0xFFF1EDE8) : Colors.white,
                                   size: 40,
                                 ),
                               ),
@@ -224,14 +248,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black87,
+                                color: isDark ? const Color(0xFFF1EDE8) : Colors.black87,
                                 letterSpacing: 2,
                               ),
                             ),
                             Text(
                               'Student Wallet',
                               style: TextStyle(
-                                color: isDark ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.6),
+                                color: isDark ? const Color(0xFFF1EDE8).withOpacity(0.7) : Colors.black.withOpacity(0.6),
                                 fontSize: 14,
                                 letterSpacing: 1.2,
                               ),
@@ -289,8 +313,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           padding: const EdgeInsets.all(15),
                           isDark: isDark,
                           child: Icon(
-                            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                            color: isDark ? Colors.white : Colors.black87,
+                            isDark ? Icons.coffee_rounded : Icons.dark_mode_rounded,
+                            color: isDark ? const Color(0xFFC8A27C) : Colors.black87,
                             size: 24,
                           ),
                         ),
@@ -352,8 +376,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               color: isSelected 
-                ? (isDark ? Colors.white : Colors.black) 
-                : (isDark ? Colors.white.withOpacity(0.5) : Colors.black.withOpacity(0.4)),
+                ? (isDark ? const Color(0xFFF1EDE8) : Colors.black) 
+                : (isDark ? const Color(0xFFF1EDE8).withOpacity(0.5) : Colors.black.withOpacity(0.4)),
             ),
           ),
         ],
@@ -381,11 +405,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             child: Icon(Icons.email_outlined, color: isDark ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.6), size: 20),
           ),
         ),
-        if (_errorText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(_errorText, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
-          ),
         const SizedBox(height: 30),
         Consumer<WalletProvider>(
           builder: (context, walletProvider, _) => Container(
@@ -393,26 +412,26 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isDark
-                    ? [const Color(0xFF00c6ff), const Color(0xFF0072ff)] // Vibrant for dark
-                    : [const Color(0xFF2c3e50), const Color(0xFF000000)], // Deep/Dark for light mode on bright bg
+                    ? [const Color(0xFFC8A27C), const Color(0xFF1C1A18)] // Caramel to Roasted Coffee
+                    : [const Color(0xFF44403C), const Color(0xFF78716C)], // Deep Stone/Brown for Light Beige
               ),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: (isDark ? const Color(0xFF00c6ff) : Colors.black).withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+                  color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF44403C)).withOpacity(0.4),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
             child: CupertinoButton(
               onPressed: walletProvider.isLoading ? null : _sendOtp,
               child: walletProvider.isLoading 
-                  ? const CupertinoActivityIndicator(color: Colors.white)
-                  : const Text(
-                      'Send OTP',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    ),
+                      ? const CupertinoActivityIndicator(color: Color(0xFFF1EDE8))
+                      : const Text(
+                          'Send OTP',
+                          style: TextStyle(color: Color(0xFFF1EDE8), fontWeight: FontWeight.bold),
+                        ),
             ),
           ),
         ),
@@ -510,11 +529,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 : null,
           ),
         ),
-        if (_errorText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(_errorText, style: const TextStyle(color: CupertinoColors.systemRed, fontSize: 13)),
-          ),
         const SizedBox(height: 25),
         Consumer<WalletProvider>(
           builder: (context, walletProvider, _) => SizedBox(
@@ -625,5 +639,60 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         ],
       ),
     );
+  }
+
+  void _showToast(String message, {bool isError = false}) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 50,
+        left: 24,
+        right: 24,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
+                )
+              ],
+              border: Border.all(
+                color: isError ? Colors.redAccent.withOpacity(0.5) : Colors.greenAccent.withOpacity(0.5),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                  color: isError ? Colors.redAccent : Colors.greenAccent,
+                  size: 20,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (overlayEntry.mounted) {
+        overlayEntry.remove();
+      }
+    });
   }
 }

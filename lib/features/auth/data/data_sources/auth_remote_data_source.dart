@@ -10,11 +10,20 @@ class AuthRemoteDataSource {
       final response = await dio.post(
         ApiConstants.requestOtp,
         data: {'email': email},
-        options: Options(headers: {'Content-Type': 'application/json'}),
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+          sendTimeout: const Duration(seconds: 5),
+          receiveTimeout: const Duration(seconds: 5),
+        ),
       );
       return response.data['success'] == true;
+    } on DioException catch (e) {
+      String message = 'Connection error. Check if server is running.';
+      if (e.type == DioExceptionType.connectionTimeout) message = 'Connection timeout. Server unreachable.';
+      if (e.response != null) message = e.response?.data['message'] ?? 'Server error: ${e.response?.statusCode}';
+      throw Exception(message);
     } catch (e) {
-      return false;
+      throw Exception('An unexpected error occurred');
     }
   }
 

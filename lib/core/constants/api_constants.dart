@@ -1,5 +1,7 @@
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.1.3:3000/api';
+  // Use '10.0.2.2' for Android Emulator, or your Local IP (192.168.x.x) for Physical Devices
+  static const String baseUrl = 'http://192.168.1.21:3000/api';
+
   
   // Wallet Endpoints
   static const String requestOtp = '$baseUrl/student-wallet/request-otp';
