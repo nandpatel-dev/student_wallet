@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Icons, Colors, Image, Curves, BoxShadow, Offset;
+import 'package:flutter/material.dart' show Icons, Colors, Image, Curves, BoxShadow, Offset, Divider;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/ios_theme.dart';
@@ -22,12 +22,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final FocusNode _emailFocus = FocusNode();
 
   bool _isEmailValid = false;
-  String _errorText = '';
+  String? _errorText;
   int _selectedTab = 0; // 0 for Email, 1 for QR
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
+
+  // No extra controllers needed for email-only login
 
   @override
   void initState() {
@@ -92,56 +94,82 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     showCupertinoModalPopup(
       context: context,
       barrierDismissible: false,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Verify Your Email'),
-        message: Column(
-          children: [
-            const Text('Enter the 6-digit OTP sent to'),
-            Text(_emailController.text, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            CupertinoTextField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              textAlign: TextAlign.center,
-              autofocus: true,
-              placeholder: '· · · · · ·',
-              style: const TextStyle(fontSize: 32, letterSpacing: 8, color: IOSTheme.primaryBlue),
-              decoration: BoxDecoration(
-                color: CupertinoColors.secondarySystemBackground.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
+      builder: (context) {
+        final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
+        return CupertinoActionSheet(
+          title: Text(
+            'Verify Your Email',
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          ),
+          message: Column(
+            children: [
+              Text(
+                'Enter the 6-digit OTP sent to',
+                style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _emailController.text,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black,
+                ),
+              ),
+              const SizedBox(height: 25),
+              CupertinoTextField(
+                controller: _otpController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                textAlign: TextAlign.center,
+                autofocus: true,
+                placeholder: '· · · · · ·',
+                style: const TextStyle(
+                  fontSize: 32,
+                  letterSpacing: 8,
+                  color: Color(0xFF0081FF),
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2A2A3D) : CupertinoColors.systemGrey6,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            Consumer<WalletProvider>(
+              builder: (context, walletProvider, _) => CupertinoActionSheetAction(
+                onPressed: walletProvider.isLoading
+                    ? () {}
+                    : () async {
+                        final success = await walletProvider.verifyOtp(
+                            _emailController.text, _otpController.text);
+                        if (success) {
+                          if (mounted) {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
+                            );
+                          }
+                        }
+                      },
+                child: walletProvider.isLoading
+                    ? const CupertinoActivityIndicator()
+                    : const Text(
+                        'Verify & Continue',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],
-        ),
-        actions: [
-          Consumer<WalletProvider>(
-            builder: (context, walletProvider, _) => CupertinoActionSheetAction(
-              onPressed: walletProvider.isLoading ? () {} : () async {
-                final success = await walletProvider.verifyOtp(
-                    _emailController.text, _otpController.text);
-                if (success) {
-                  if (mounted) {
-                    Navigator.pop(context);
-                    Navigator.pushReplacement(
-                      context,
-                      CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
-                    );
-                  }
-                }
-              },
-              child: walletProvider.isLoading
-                  ? const CupertinoActivityIndicator()
-                  : const Text('Verify & Continue'),
-            ),
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(context),
+            isDestructiveAction: true,
+            child: const Text('Cancel'),
           ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          isDestructiveAction: true,
-          child: const Text('Cancel'),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -151,168 +179,255 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     final isDark = themeProvider.isDarkMode;
 
     return CupertinoPageScaffold(
-      backgroundColor: IOSTheme.systemBackground,
-      child: Stack(
-        children: [
-          // ── Background Gradient ──────────────────
-          Positioned.fill(
-            child: AnimatedContainer(
-              duration: const Duration(seconds: 1),
+      backgroundColor: isDark ? const Color(0xFF0B0B14) : CupertinoColors.systemGroupedBackground,
+      child: FadeTransition(
+        opacity: _fadeAnim,
+        child: SlideTransition(
+          position: _slideAnim,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+            // ── Header Section (New Design) ──────────
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              width: double.infinity,
+              padding: const EdgeInsets.only(top: 80, bottom: 40),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
                   colors: isDark
-                      ? [const Color(0xFF0F0F1A), const Color(0xFF1A1A2E), const Color(0xFF0D0D1A)]
-                      : [const Color(0xFFE0EAFC), const Color(0xFFCFDEF3), const Color(0xFFE0EAFC)],
+                      ? [const Color(0xFF151525), const Color(0xFF0B0B14)]
+                      : [const Color(0xFF0081FF), const Color(0xFF00BCFF)],
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 70,
+                    height: 70,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.school_rounded,
+                        color: Color(0xFF0081FF),
+                        size: 35,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  const Text(
+                    'JUSTYFAI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 40),
+                    child: Text(
+                      'Sign in to your learning account to continue your journey',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Login Form Card ────────────────────
+            Transform.translate(
+              offset: const Offset(0, -20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 500),
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E1E2E) : CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
+                      blurRadius: 20,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Tab Switcher (New Design) ────────────
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2A2A3D) : CupertinoColors.systemGrey6,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: CupertinoSlidingSegmentedControl<int>(
+                        groupValue: _selectedTab,
+                        backgroundColor: CupertinoColors.transparent,
+                        thumbColor: isDark ? const Color(0xFF3D3D52) : CupertinoColors.white,
+                        children: {
+                          0: _buildTabItem(Icons.email_outlined, 'Email', _selectedTab == 0, isDark),
+                          1: _buildTabItem(Icons.qr_code_scanner_rounded, 'QR login', _selectedTab == 1, isDark),
+                        },
+                        onValueChanged: (val) => setState(() => _selectedTab = val!),
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    _selectedTab == 0 ? _buildEmailForm(isDark) : _buildQRSection(isDark),
+                  ],
                 ),
               ),
             ),
-          ),
-
-          // ── Decorative Blurred Shapes ────────────
-          Positioned(
-            top: -100,
-            right: -50,
-            child: _blurCircle(250, IOSTheme.primaryBlue.withOpacity(0.15)),
-          ),
-          Positioned(
-            bottom: -50,
-            left: -50,
-            child: _blurCircle(300, const Color(0xFF6C63FF).withOpacity(0.12)),
-          ),
-
-          // ── Content ──────────────────────────────
-          SafeArea(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: IOSTheme.paddingL),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 40),
-                      
-                      // ── Header Section ──────────
-                      Center(
-                        child: IOSTheme.glassContainer(
-                          padding: const EdgeInsets.all(20),
-                          borderRadius: 30,
-                          context: context,
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 80,
-                                height: 80,
-                                padding: const EdgeInsets.all(15),
-                                decoration: BoxDecoration(
-                                  color: IOSTheme.primaryBlue.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Image.asset(
-                                  'assets/images/logo.png',
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.school_rounded,
-                                    color: IOSTheme.primaryBlue,
-                                    size: 40,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 15),
-                              const Text(
-                                'JUSTYFAI',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                              Text(
-                                'Your academic journey in one place',
-                                style: TextStyle(
-                                  color: IOSTheme.secondaryLabel.resolveFrom(context),
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+            
+            // ── Theme Toggle Button ──────────────────
+            const SizedBox(height: 20),
+            Center(
+              child: CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: () => themeProvider.toggleTheme(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 500),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-
-                      const SizedBox(height: 30),
-
-                      // ── Stats Section ───────────
-                      IOSTheme.glassContainer(
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        context: context,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _statItem('16+', 'Certs'),
-                            _divider(),
-                            _statItem('8.7', 'CGPA'),
-                            _divider(),
-                            _statItem('92%', 'Attd'),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      // ── Tab Switcher ────────────
-                      Center(
-                        child: IOSTheme.glassContainer(
-                          padding: const EdgeInsets.all(4),
-                          borderRadius: 14,
-                          context: context,
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: CupertinoSlidingSegmentedControl<int>(
-                              groupValue: _selectedTab,
-                              backgroundColor: CupertinoColors.transparent,
-                              thumbColor: isDark 
-                                  ? CupertinoColors.systemGrey5.darkColor 
-                                  : CupertinoColors.white,
-                              children: {
-                                0: _tabItem(Icons.email_outlined, 'Email', _selectedTab == 0),
-                                1: _tabItem(Icons.qr_code_scanner_rounded, 'QR login', _selectedTab == 1),
-                              },
-                              onValueChanged: (val) => setState(() => _selectedTab = val!),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      // ── Active Tab View ─────────
-                      _selectedTab == 0 ? _buildEmailTab(context) : _buildQRTab(context),
-
-                      const SizedBox(height: 40),
-                      
-                      // ── Theme Toggle ───────────
-                      Center(
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: () => themeProvider.toggleTheme(),
-                          child: IOSTheme.glassContainer(
-                            padding: const EdgeInsets.all(12),
-                            borderRadius: 50,
-                            context: context,
-                            child: Icon(
-                              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                              size: 20,
-                              color: IOSTheme.primaryBlue,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
                     ],
                   ),
+                  child: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    color: isDark ? Colors.amber : const Color(0xFF0081FF),
+                    size: 24,
+                  ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    ),
+  ),
+);
+}
+
+  // ── Helper Widgets for New Design ────────────────
+
+  Widget _buildEmailForm(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Email Address',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.grey[300] : Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildTextField(
+          controller: _emailController,
+          placeholder: 'student@example.com',
+          keyboardType: TextInputType.emailAddress,
+          isDark: isDark,
+          onChanged: _validateEmail,
+          prefixIcon: Icons.email_outlined,
+        ),
+        if (_errorText != null && _errorText!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 4),
+            child: Text(
+              _errorText!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
+        const SizedBox(height: 25),
+        Consumer<WalletProvider>(
+          builder: (context, walletProvider, _) => Container(
+            width: double.infinity,
+            height: 55,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0081FF), Color(0xFF00BCFF)],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0081FF).withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: walletProvider.isLoading ? null : _sendOtp,
+              child: walletProvider.isLoading
+                  ? const CupertinoActivityIndicator(color: Colors.white)
+                  : const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        _demoHintWidget(isDark),
+      ],
+    );
+  }
+
+  Widget _demoHintWidget(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2A2A3D) : Colors.blue.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, size: 18, color: Color(0xFF0081FF)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Demo Mode: Use any valid email and OTP: 1234',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark ? Colors.grey[400] : Colors.grey[700],
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -321,96 +436,64 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildEmailTab(BuildContext context) {
+  Widget _buildQRSection(bool isDark) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Welcome Back',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(25),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0081FF).withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.qr_code_scanner_rounded,
+              size: 50,
+              color: Color(0xFF0081FF),
+            ),
+          ),
         ),
+        const SizedBox(height: 20),
         Text(
-          'Sign in with your institutional email',
-          style: TextStyle(color: IOSTheme.secondaryLabel.resolveFrom(context)),
-        ),
-        const SizedBox(height: 20),
-        IOSTheme.glassContainer(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          context: context,
-          child: CupertinoTextField(
-            controller: _emailController,
-            focusNode: _emailFocus,
-            keyboardType: TextInputType.emailAddress,
-            placeholder: 'name@college.edu',
-            onChanged: _validateEmail,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: null,
-            prefix: const Padding(
-              padding: EdgeInsets.only(right: 8.0),
-              child: Icon(Icons.email_outlined, color: IOSTheme.primaryBlue, size: 20),
-            ),
-            suffix: _isEmailValid 
-                ? const Icon(Icons.check_circle_rounded, color: CupertinoColors.systemGreen, size: 20)
-                : null,
-          ),
-        ),
-        if (_errorText.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(_errorText, style: const TextStyle(color: CupertinoColors.systemRed, fontSize: 13)),
-          ),
-        const SizedBox(height: 25),
-        Consumer<WalletProvider>(
-          builder: (context, walletProvider, _) => SizedBox(
-            width: double.infinity,
-            child: CupertinoButton.filled(
-              borderRadius: BorderRadius.circular(16),
-              onPressed: walletProvider.isLoading ? null : _sendOtp,
-              child: walletProvider.isLoading 
-                  ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-                  : const Text('Send Verification OTP', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        _demoHint(context),
-      ],
-    );
-  }
-
-  Widget _buildQRTab(BuildContext context) {
-    return Column(
-      children: [
-        IOSTheme.glassContainer(
-          padding: const EdgeInsets.all(25),
-          borderRadius: 40,
-          context: context,
-          child: const Icon(Icons.qr_code_scanner_rounded, size: 60, color: IOSTheme.primaryBlue),
-        ),
-        const SizedBox(height: 20),
-        const Text(
           'Sync from Web',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
         ),
         const SizedBox(height: 10),
         Text(
           'Scan the QR code on your dashboard\nto transfer your wallet instantly.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: IOSTheme.secondaryLabel.resolveFrom(context)),
+          style: TextStyle(
+            color: isDark ? Colors.grey[400] : Colors.grey,
+            fontSize: 14,
+            height: 1.5,
+          ),
         ),
         const SizedBox(height: 30),
         SizedBox(
           width: double.infinity,
           child: CupertinoButton(
-            color: IOSTheme.primaryBlue.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
-            onPressed: () => Navigator.push(context, CupertinoPageRoute(builder: (_) => const QRScannerPage())),
+            color: const Color(0xFF0081FF).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(14),
+            onPressed: () => Navigator.push(
+              context,
+              CupertinoPageRoute(builder: (_) => const QRScannerPage()),
+            ),
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.camera_alt_outlined, color: IOSTheme.primaryBlue),
+                Icon(Icons.camera_alt_outlined, color: Color(0xFF0081FF)),
                 SizedBox(width: 8),
-                Text('Open Scanner', style: TextStyle(color: IOSTheme.primaryBlue, fontWeight: FontWeight.bold)),
+                Text(
+                  'Open Scanner',
+                  style: TextStyle(
+                    color: Color(0xFF0081FF),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
           ),
@@ -419,54 +502,77 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _tabItem(IconData icon, String label, bool isSelected) {
+  Widget _buildTabItem(IconData icon, String label, bool isSelected, bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 16, color: isSelected ? IOSTheme.primaryBlue : CupertinoColors.systemGrey),
+          Icon(
+            icon,
+            size: 16,
+            color: isSelected ? const Color(0xFF0081FF) : (isDark ? Colors.grey[600] : Colors.grey),
+          ),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? const Color(0xFF0081FF) : (isDark ? Colors.grey[600] : Colors.grey),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _statItem(String value, String label) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-        Text(label, style: const TextStyle(fontSize: 11, color: CupertinoColors.systemGrey)),
-      ],
-    );
-  }
+  // ── Helper Widgets for New Design ────────────────
 
-  Widget _divider() => Container(width: 1, height: 25, color: CupertinoColors.systemGrey.withOpacity(0.2));
-
-  Widget _blurCircle(double size, Color color) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String placeholder,
+    bool isPassword = false,
+    bool obscureText = false,
+    bool isDark = false,
+    IconData? prefixIcon,
+    VoidCallback? onToggleVisibility,
+    ValueChanged<String>? onChanged,
+    TextInputType? keyboardType,
+  }) {
     return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-
-  Widget _demoHint(BuildContext context) {
-    return IOSTheme.glassContainer(
-      padding: const EdgeInsets.all(12),
-      context: context,
-      child: const Row(
-        children: [
-          Icon(Icons.info_outline, size: 18, color: IOSTheme.primaryBlue),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Demo Mode: Use any valid email and OTP: 1234',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            ),
-          ),
-        ],
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF2A2A3D) : CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.grey[200]!),
+      ),
+      child: CupertinoTextField(
+        controller: controller,
+        placeholder: placeholder,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        onChanged: onChanged,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: null,
+        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+        placeholderStyle: TextStyle(color: isDark ? Colors.grey[600] : Colors.grey, fontSize: 15),
+        prefix: prefixIcon != null
+            ? Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: Icon(prefixIcon, color: isDark ? Colors.grey[600] : Colors.grey, size: 20),
+              )
+            : null,
+        suffix: isPassword
+            ? CupertinoButton(
+                padding: const EdgeInsets.only(right: 12),
+                onPressed: onToggleVisibility,
+                child: Icon(
+                  obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+              )
+            : null,
       ),
     );
   }
