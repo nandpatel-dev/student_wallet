@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset;
+import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset, SelectableText, Theme, TargetPlatform;
 import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/ios_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
@@ -9,6 +9,11 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
+import 'package:flutter/services.dart';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:student_app/core/constants/api_constants.dart';
 
 class CertificatesPage extends StatefulWidget {
   const CertificatesPage({super.key});
@@ -29,25 +34,16 @@ class _CertificatesPageState extends State<CertificatesPage> {
 
   // ── VIEW Certificate ───────────────────────────
   Future<void> _viewCertificate(BuildContext context, WalletCert cert) async {
-    final rawUrl = cert.viewUrl;
-    final viewUrl = rawUrl.contains('localhost') ? rawUrl.replaceAll('localhost', '192.168.1.3') : rawUrl;
-    try {
-      await launchUrl(Uri.parse(viewUrl), mode: LaunchMode.externalApplication);
-    } catch (e) {
-      if (context.mounted) _showToast(context, 'Failed to open certificate', isError: true);
-    }
+    final viewUrl = ApiConstants.viewCertificate(cert.id);
+    await _downloadAndOpenFile(context, viewUrl, 'view_${cert.id}.pdf', openAfterDownload: true);
   }
 
   // ── DOWNLOAD Certificate ───────────────────────
   Future<void> _downloadCertificate(BuildContext context, WalletCert cert) async {
-    final rawUrl = cert.downloadUrl;
-    final downloadUrl = rawUrl.contains('localhost') ? rawUrl.replaceAll('localhost', '192.168.1.3') : rawUrl;
-    try {
-      await launchUrl(Uri.parse(downloadUrl), mode: LaunchMode.externalApplication);
-      _showToast(context, 'Starting download...');
-    } catch (e) {
-      if (mounted) _showToast(context, 'Failed to start download', isError: true);
-    }
+    final downloadUrl = ApiConstants.downloadCertificate(cert.id);
+    // Sanitize filename for download
+    final safeName = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await _downloadAndOpenFile(context, downloadUrl, 'Certificate_$safeName.pdf', openAfterDownload: false);
   }
 
   // ── VERIFY Certificate ─────────────────────────
@@ -57,8 +53,11 @@ class _CertificatesPageState extends State<CertificatesPage> {
     try {
       final shareUrl = await walletProvider.getShareableUrl(cert.id);
       if (shareUrl != null && shareUrl.isNotEmpty) {
-        final finalUrl = shareUrl.contains('localhost') ? shareUrl.replaceAll('localhost', '192.168.1.3') : shareUrl;
-        await launchUrl(Uri.parse(finalUrl), mode: LaunchMode.externalApplication);
+        final finalUrl = shareUrl.contains('localhost') ? shareUrl.replaceAll('localhost', '192.168.1.21') : shareUrl;
+        final finalWithIp = finalUrl.contains('127.0.0.1') ? finalUrl.replaceAll('127.0.0.1', '192.168.1.21') : finalUrl;
+
+        _showToast(context, 'Opening verification page...');
+        await launchUrl(Uri.parse(finalWithIp), mode: LaunchMode.externalApplication);
       } else {
         throw Exception(walletProvider.error ?? 'Verification URL not found');
       }
@@ -66,6 +65,58 @@ class _CertificatesPageState extends State<CertificatesPage> {
       if (context.mounted) _showToast(context, "Verification failed: ${e.toString().split('Exception: ').last}", isError: true);
     }
   }
+
+  Future<void> _downloadAndOpenFile(BuildContext context, String url, String fileName, {bool openAfterDownload = true}) async {
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final token = await walletProvider.getToken();
+    _showToast(context, openAfterDownload ? 'Getting document...' : 'Downloading to local storage...');
+
+    try {
+      String savePath;
+      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
+        // Attempt to save to public Downloads on Android
+        savePath = '/storage/emulated/0/Download/$fileName';
+      } else {
+        final directory = openAfterDownload ? await getTemporaryDirectory() : await getApplicationDocumentsDirectory();
+        savePath = '${directory.path}/$fileName';
+      }
+
+      final dio = Dio();
+      await dio.download(
+        url,
+        savePath,
+        options: Options(
+          headers: {'x-student-wallet': token},
+          followRedirects: true,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      if (openAfterDownload) {
+        _showToast(context, 'Opening document...');
+        final result = await OpenFilex.open(savePath);
+        if (result.type != ResultType.done) {
+          throw Exception(result.message);
+        }
+      } else {
+        _showToast(context, '✅ Downloaded to device storage!');
+      }
+    } catch (e) {
+      // Fallback for Android if public storage fails (Android 10+ scoped storage)
+      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final fallbackPath = '${directory.path}/$fileName';
+          await Dio().download(url, fallbackPath, options: Options(headers: {'x-student-wallet': token}));
+          _showToast(context, '✅ Saved to app documents!');
+          return;
+        } catch (_) {}
+      }
+      if (context.mounted) _showToast(context, 'Download Error: \${e.toString()}', isError: true);
+    }
+  }
+
+
 
   void _showToast(BuildContext context, String message, {bool isError = false}) {
     // Simple toast notification system
@@ -143,7 +194,9 @@ class _CertificatesPageState extends State<CertificatesPage> {
                                   child: Text(
                                     f, 
                                     style: TextStyle(
-                                      color: _selectedFilter == f ? Colors.white : Colors.white.withOpacity(0.5),
+                                      color: _selectedFilter == f 
+                                          ? (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)) 
+                                          : (isDark ? const Color(0xFFF1EDE8).withOpacity(0.5) : const Color(0xFF9C938C)),
                                       fontSize: 14,
                                       fontWeight: _selectedFilter == f ? FontWeight.bold : FontWeight.w500,
                                     ),
@@ -163,7 +216,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                       child: Center(
                         child: Text(
                           'No records found under this filter', 
-                          style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.4), fontSize: 15),
+                          style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontSize: 15),
                         ),
                       ),
                     )
@@ -219,10 +272,10 @@ class _CertificatesPageState extends State<CertificatesPage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFFF1EDE8),
+                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                   letterSpacing: -0.5,
                 ),
               ),
@@ -231,7 +284,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: () => themeProvider.toggleTheme(),
-                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill),
+                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill, isDark),
                   ),
                   const SizedBox(width: 12),
                   CupertinoButton(
@@ -245,7 +298,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                         );
                       }
                     },
-                    child: _glassButtonIcon(CupertinoIcons.power, isLogout: true),
+                    child: _glassButtonIcon(CupertinoIcons.power, isDark, isLogout: true),
                   ),
                 ],
               ),
@@ -256,7 +309,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
     );
   }
 
-  Widget _glassButtonIcon(IconData icon, {bool isLogout = false}) {
+  Widget _glassButtonIcon(IconData icon, bool isDark, {bool isLogout = false}) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -269,7 +322,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
           width: 1
         ),
       ),
-      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : const Color(0xFFF1EDE8), size: 20),
+      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)), size: 20),
     );
   }
 
@@ -303,13 +356,13 @@ class _CertificatesPageState extends State<CertificatesPage> {
                   borderRadius: BorderRadius.circular(18),
                   boxShadow: [
                     BoxShadow(
-                      color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF78716C)).withOpacity(0.3),
+                      color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27)).withOpacity(0.3),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     )
                   ],
                 ),
-                child: Icon(CupertinoIcons.doc_fill, color: isDark ? const Color(0xFFF1EDE8) : Colors.white, size: 28),
+                child: Icon(CupertinoIcons.doc_fill, color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFFFDFCF0), size: 28),
               ),
               const SizedBox(width: 18),
               Expanded(
@@ -321,7 +374,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                       style: TextStyle(
                         fontSize: 17, 
                         fontWeight: FontWeight.w800, 
-                        color: isDark ? const Color(0xFFF1EDE8) : Colors.white,
+                        color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                         letterSpacing: -0.2,
                       ),
                       maxLines: 1,
@@ -330,7 +383,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                     const SizedBox(height: 4),
                     Text(
                       cert.issuerName ?? 'JustyfAI Verified',
-                      style: TextStyle(fontSize: 13, color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.5)),
+                      style: TextStyle(fontSize: 13, color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7)),
                     ),
                   ],
                 ),
@@ -340,7 +393,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
                 children: [
                   Text(
                     formattedDate, 
-                    style: TextStyle(fontSize: 12, color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.4), fontWeight: FontWeight.w700)
+                    style: TextStyle(fontSize: 12, color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontWeight: FontWeight.w700)
                   ),
                   const SizedBox(height: 8),
                   _premiumStatusBadge(cert.lifecycle.state),

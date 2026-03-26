@@ -54,20 +54,22 @@ class WalletRemoteDataSource {
         }
 
         if (finalUrl != null) {
-          // If the backend returns localhost, rewrite it so the physical phone or emulator can access it using the machine IP
+          // If the backend returns localhost or anything that looks like internal address, attempt rewrite if it's on the same subnet
           if (finalUrl.contains('localhost')) {
-             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.3');
+             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.21');
+          } else if (finalUrl.contains('127.0.0.1')) {
+             finalUrl = finalUrl.replaceAll('127.0.0.1', '192.168.1.21');
           }
           return finalUrl;
         }
         
-        throw Exception(data['message'] ?? 'Failed to get shareable URL. Response: \$data');
+        throw Exception(data['message'] ?? 'Failed to get shareable URL. Response: $data');
       }
 
-      throw Exception('Unexpected response format: \${response.data}');
+      throw Exception('Unexpected response format: ${response.data}');
     } catch (e) {
       if (e is DioException) {
-         print('VERIFY API ERROR: \${e.response?.data}');
+         print('SHARE CERT API ERROR: ${e.response?.data}');
          if (e.response?.statusCode == 401) {
            throw Exception('Unauthorized');
          }

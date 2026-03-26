@@ -11,4 +11,6 @@ class ApiConstants {
   static const String session = '$baseUrl/student-wallet/session';
   static const String certificates = '$baseUrl/student-wallet/certificates';
   static String shareCertificate(String id) => '$certificates/$id/share';
+  static String downloadCertificate(String id) => '$certificates/$id/download';
+  static String viewCertificate(String id) => '$certificates/$id/view';
 }

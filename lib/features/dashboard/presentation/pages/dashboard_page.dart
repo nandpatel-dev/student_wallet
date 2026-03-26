@@ -1,5 +1,5 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset;
+import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset, Theme, TargetPlatform, ScaffoldMessenger, SnackBar, SnackBarBehavior, RoundedRectangleBorder;
 import 'package:provider/provider.dart';
 import 'package:student_app/core/theme/ios_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
@@ -9,6 +9,10 @@ import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:student_app/core/constants/api_constants.dart';
 
 class DashboardWrapper extends StatefulWidget {
   const DashboardWrapper({super.key});
@@ -20,11 +24,12 @@ class DashboardWrapper extends StatefulWidget {
 class _DashboardWrapperState extends State<DashboardWrapper> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
-        backgroundColor: Colors.white.withOpacity(0.05),
-        activeColor: Colors.white,
-        inactiveColor: Colors.white.withOpacity(0.4),
+        backgroundColor: (isDark ? Colors.white : const Color(0xFF2E2A27)).withOpacity(0.05),
+        activeColor: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
+        inactiveColor: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)).withOpacity(0.4),
         border: null,
         items: const [
           BottomNavigationBarItem(
@@ -210,14 +215,14 @@ class _DashboardPageState extends State<DashboardPage> {
                             const SizedBox(height: 35),
 
                             // Statistics Grid
-                            const Padding(
-                              padding: EdgeInsets.only(left: 4, bottom: 18),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4, bottom: 18),
                               child: Text(
                                 'Your Progress',
                                 style: TextStyle(
                                   fontSize: 22, 
                                   fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFF1EDE8),
+                                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                                   letterSpacing: 0.5,
                                 ),
                               ),
@@ -231,12 +236,12 @@ class _DashboardPageState extends State<DashboardPage> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
+                                  Text(
                                     'Recent activity',
                                     style: TextStyle(
                                       fontSize: 22, 
                                       fontWeight: FontWeight.bold,
-                                      color: const Color(0xFFF1EDE8),
+                                      color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                                       letterSpacing: 0.5,
                                     ),
                                   ),
@@ -247,7 +252,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       'View all', 
                                       style: TextStyle(
                                         fontSize: 15, 
-                                        color: Colors.white.withOpacity(0.6),
+                                        color: isDark ? const Color(0xFFF1EDE8).withOpacity(0.6) : const Color(0xFF6D655F),
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -300,10 +305,10 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
-                  color: const Color(0xFFF1EDE8),
+                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                   letterSpacing: -0.5,
                 ),
               ),
@@ -312,7 +317,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: () => themeProvider.toggleTheme(),
-                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill),
+                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill, isDark),
                   ),
                   const SizedBox(width: 12),
                   CupertinoButton(
@@ -326,7 +331,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         );
                       }
                     },
-                    child: _glassButtonIcon(CupertinoIcons.power, isLogout: true),
+                    child: _glassButtonIcon(CupertinoIcons.power, isDark, isLogout: true),
                   ),
                 ],
               ),
@@ -339,7 +344,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   // ── Premium Glass Component Builders ──
 
-  Widget _glassButtonIcon(IconData icon, {bool isLogout = false}) {
+  Widget _glassButtonIcon(IconData icon, bool isDark, {bool isLogout = false}) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -352,7 +357,7 @@ class _DashboardPageState extends State<DashboardPage> {
           width: 1
         ),
       ),
-      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : const Color(0xFFF1EDE8), size: 20),
+      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)), size: 20),
     );
   }
 
@@ -372,7 +377,7 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Text(
                   'Good morning,', 
-                  style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.5), fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -380,7 +385,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   style: TextStyle(
                     fontSize: 28, 
                     fontWeight: FontWeight.w900, 
-                    color: isDark ? const Color(0xFFF1EDE8) : Colors.white,
+                    color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                     letterSpacing: -0.8,
                   ),
                 ),
@@ -402,7 +407,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         style: TextStyle(
                           fontSize: 11, 
                           fontWeight: FontWeight.w600, 
-                          color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.7),
+                          color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -440,7 +445,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
       child: Center(
-        child: Icon(CupertinoIcons.person_fill, color: isDark ? const Color(0xFFF1EDE8) : Colors.white, size: 32),
+        child: Icon(CupertinoIcons.person_fill, color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFFFDFCF0), size: 32),
       ),
     );
   }
@@ -492,7 +497,7 @@ class _DashboardPageState extends State<DashboardPage> {
             style: TextStyle(
               fontSize: 24, 
               fontWeight: FontWeight.w900, 
-              color: isDark ? const Color(0xFFF1EDE8) : Colors.white,
+              color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
               letterSpacing: -0.5,
             ),
           ),
@@ -501,7 +506,7 @@ class _DashboardPageState extends State<DashboardPage> {
             label, 
             style: TextStyle(
               fontSize: 12, 
-              color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.5),
+              color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -523,7 +528,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const SizedBox(height: 16),
               Text(
                 'No activity recorded yet', 
-                style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.4), fontWeight: FontWeight.w500),
+                style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -565,7 +570,7 @@ class _DashboardPageState extends State<DashboardPage> {
                           Text(
                             cert.templateName, 
                             style: TextStyle(
-                              color: isDark ? const Color(0xFFF1EDE8) : Colors.white, 
+                              color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27), 
                               fontWeight: FontWeight.w700,
                               fontSize: 16,
                             ),
@@ -576,17 +581,34 @@ class _DashboardPageState extends State<DashboardPage> {
                           Text(
                             cert.issuerName ?? 'JustyfAI Verified', 
                             style: TextStyle(
-                              color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.5), 
+                              color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7), 
                               fontSize: 13,
                             ),
                           ),
                         ],
+                        ),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: () => _downloadCertificate(context, cert),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27)).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          CupertinoIcons.cloud_download,
+                          color: isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27),
+                          size: 18,
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       formattedDate, 
                       style: TextStyle(
-                        color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.4), 
+                        color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), 
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
@@ -637,6 +659,81 @@ class _DashboardPageState extends State<DashboardPage> {
             child: child,
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _downloadCertificate(BuildContext context, WalletCert cert) async {
+    final downloadUrl = ApiConstants.downloadCertificate(cert.id);
+    final safeName = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+    await _downloadAndOpenFile(context, downloadUrl, 'Certificate_\$safeName.pdf', openAfterDownload: false);
+  }
+
+  Future<void> _downloadAndOpenFile(BuildContext context, String url, String fileName, {bool openAfterDownload = true}) async {
+    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
+    final token = await walletProvider.getToken();
+    _showToast(context, openAfterDownload ? 'Getting document...' : 'Downloading to local storage...');
+
+    try {
+      String savePath;
+      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
+        savePath = '/storage/emulated/0/Download/\$fileName';
+      } else {
+        final directory = openAfterDownload ? await getTemporaryDirectory() : await getApplicationDocumentsDirectory();
+        savePath = '\${directory.path}/\$fileName';
+      }
+
+      final dio = Dio();
+      await dio.download(
+        url,
+        savePath,
+        options: Options(
+          headers: {'x-student-wallet': token},
+          followRedirects: true,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+
+      if (openAfterDownload) {
+        _showToast(context, 'Opening document...');
+        final result = await OpenFilex.open(savePath);
+        if (result.type != ResultType.done) {
+          throw Exception(result.message);
+        }
+      } else {
+        _showToast(context, '✅ Downloaded to device storage!');
+      }
+    } catch (e) {
+      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
+        try {
+          final directory = await getApplicationDocumentsDirectory();
+          final fallbackPath = '\${directory.path}/\$fileName';
+          await Dio().download(url, fallbackPath, options: Options(headers: {'x-student-wallet': token}));
+          _showToast(context, '✅ Saved to app documents!');
+          return;
+        } catch (_) {}
+      }
+      if (context.mounted) _showToast(context, 'Download Error: \${e.toString()}', isError: true);
+    }
+  }
+
+  void _showToast(BuildContext context, String message, {bool isError = false}) {
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message, 
+          style: TextStyle(
+            color: isError ? Colors.white : (isDark ? const Color(0xFF1C1A18) : Colors.white),
+            fontWeight: FontWeight.w600
+          )
+        ),
+        backgroundColor: isError 
+            ? const Color(0xFFEF4444) 
+            : (isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27)).withOpacity(0.9),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 2),
       ),
     );
   }

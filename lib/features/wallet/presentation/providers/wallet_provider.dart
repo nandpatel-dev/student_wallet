@@ -114,6 +114,10 @@ class WalletProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String?> getToken() async {
+    return await _storageService.getToken();
+  }
+
   Future<String?> getShareableUrl(String certId) async {
     _isLoading = true;
     _error = null;

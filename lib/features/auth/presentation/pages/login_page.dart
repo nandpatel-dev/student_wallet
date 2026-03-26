@@ -93,6 +93,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _showOtpDialog() {
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
     _otpController.clear();
     showCupertinoModalPopup(
       context: context,
@@ -114,21 +115,21 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               placeholderStyle: TextStyle(
                 fontSize: 32, 
                 letterSpacing: 8, 
-                color: (Provider.of<ThemeProvider>(context, listen: false).isDarkMode ? Colors.white : Colors.black).withOpacity(0.2),
+                color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
               ),
               style: TextStyle(
                 fontSize: 32, 
                 letterSpacing: 8, 
                 fontWeight: FontWeight.bold,
-                color: Provider.of<ThemeProvider>(context, listen: false).isDarkMode 
+                color: isDark 
                     ? const Color(0xFFC8A27C) // Caramel Gold (Dark Coffee Theme)
                     : const Color(0xFF78350F), // Deep Amber/Brown (Light Beige Theme)
               ),
               decoration: BoxDecoration(
-                color: CupertinoColors.secondarySystemBackground.withOpacity(0.4),
+                color: (isDark ? const Color(0xFFF1EDE8) : Colors.black).withOpacity(0.08),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: (Provider.of<ThemeProvider>(context, listen: false).isDarkMode ? Colors.white : Colors.black).withOpacity(0.1),
+                  color: (isDark ? const Color(0xFFF1EDE8) : Colors.black).withOpacity(0.1),
                 ),
               ),
             ),
@@ -157,7 +158,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               },
               child: walletProvider.isLoading
                   ? const CupertinoActivityIndicator()
-                  : const Text('Verify & Continue'),
+                  : Text('Verify & Continue', style: TextStyle(color: isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27))),
             ),
           ),
         ],
@@ -248,14 +249,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                               style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? const Color(0xFFF1EDE8) : Colors.black87,
+                                color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
                                 letterSpacing: 2,
                               ),
                             ),
                             Text(
                               'Student Wallet',
                               style: TextStyle(
-                                color: isDark ? const Color(0xFFF1EDE8).withOpacity(0.7) : Colors.black.withOpacity(0.6),
+                                color: isDark ? const Color(0xFFF1EDE8).withOpacity(0.7) : const Color(0xFF6D655F),
                                 fontSize: 14,
                                 letterSpacing: 1.2,
                               ),
@@ -314,7 +315,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                           isDark: isDark,
                           child: Icon(
                             isDark ? Icons.coffee_rounded : Icons.dark_mode_rounded,
-                            color: isDark ? const Color(0xFFC8A27C) : Colors.black87,
+                            color: isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27),
                             size: 24,
                           ),
                         ),
@@ -376,8 +377,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               color: isSelected 
-                ? (isDark ? const Color(0xFFF1EDE8) : Colors.black) 
-                : (isDark ? const Color(0xFFF1EDE8).withOpacity(0.5) : Colors.black.withOpacity(0.4)),
+                ? (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)) 
+                : (isDark ? const Color(0xFFF1EDE8).withOpacity(0.5) : const Color(0xFF9C938C)),
             ),
           ),
         ],
@@ -392,17 +393,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           controller: _emailController,
           placeholder: 'name@college.edu',
           onChanged: _validateEmail,
-          placeholderStyle: TextStyle(color: isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4)),
-          style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          placeholderStyle: TextStyle(color: isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF9C938C)),
+          style: TextStyle(color: isDark ? Colors.white : const Color(0xFF2E2A27)),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02),
             borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
+            border: Border.all(color: isDark ? Colors.white.withOpacity(0.1) : const Color(0xFF2E2A27).withOpacity(0.1)),
           ),
           prefix: Padding(
             padding: const EdgeInsets.only(left: 16),
-            child: Icon(Icons.email_outlined, color: isDark ? Colors.white.withOpacity(0.6) : Colors.black.withOpacity(0.6), size: 20),
+            child: Icon(Icons.email_outlined, color: isDark ? Colors.white.withOpacity(0.6) : const Color(0xFF6D655F), size: 20),
           ),
         ),
         const SizedBox(height: 30),
@@ -427,11 +428,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             child: CupertinoButton(
               onPressed: walletProvider.isLoading ? null : _sendOtp,
               child: walletProvider.isLoading 
-                      ? const CupertinoActivityIndicator(color: Color(0xFFF1EDE8))
-                      : const Text(
-                          'Send OTP',
-                          style: TextStyle(color: Color(0xFFF1EDE8), fontWeight: FontWeight.bold),
-                        ),
+                  ? CupertinoActivityIndicator(color: isDark ? const Color(0xFFF1EDE8) : Colors.white)
+                  : Text(
+                      'Send OTP',
+                      style: TextStyle(color: isDark ? const Color(0xFFF1EDE8) : Colors.white, fontWeight: FontWeight.bold),
+                    ),
             ),
           ),
         ),
