@@ -325,7 +325,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     onPressed: () async {
                       await Provider.of<WalletProvider>(context, listen: false).logout();
                       if (context.mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
+                        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
                           CupertinoPageRoute(builder: (_) => const LoginPage()), 
                           (route) => false
                         );
