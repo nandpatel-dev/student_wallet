@@ -87,6 +87,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
         savePath,
         options: Options(
           headers: {'x-student-wallet': token},
+          responseType: ResponseType.bytes,
           followRedirects: true,
           validateStatus: (status) => status != null && status < 500,
         ),
@@ -112,7 +113,7 @@ class _CertificatesPageState extends State<CertificatesPage> {
           return;
         } catch (_) {}
       }
-      if (context.mounted) _showToast(context, 'Download Error: \${e.toString()}', isError: true);
+      if (context.mounted) _showToast(context, 'Error: \${e.toString()}', isError: true);
     }
   }
 

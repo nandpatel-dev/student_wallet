@@ -689,6 +689,7 @@ class _DashboardPageState extends State<DashboardPage> {
         savePath,
         options: Options(
           headers: {'x-student-wallet': token},
+          responseType: ResponseType.bytes,
           followRedirects: true,
           validateStatus: (status) => status != null && status < 500,
         ),
@@ -713,7 +714,7 @@ class _DashboardPageState extends State<DashboardPage> {
           return;
         } catch (_) {}
       }
-      if (context.mounted) _showToast(context, 'Download Error: \${e.toString()}', isError: true);
+      if (context.mounted) _showToast(context, 'Error: \${e.toString()}', isError: true);
     }
   }
 
