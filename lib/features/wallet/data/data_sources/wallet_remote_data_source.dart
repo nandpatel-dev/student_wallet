@@ -56,9 +56,9 @@ class WalletRemoteDataSource {
         if (finalUrl != null) {
           // If the backend returns localhost or anything that looks like internal address, attempt rewrite if it's on the same subnet
           if (finalUrl.contains('localhost')) {
-             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.21');
+             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.3');
           } else if (finalUrl.contains('127.0.0.1')) {
-             finalUrl = finalUrl.replaceAll('127.0.0.1', '192.168.1.21');
+             finalUrl = finalUrl.replaceAll('127.0.0.1', '192.168.1.3');
           }
           return finalUrl;
         }
