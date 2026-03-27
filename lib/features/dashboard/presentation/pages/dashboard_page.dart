@@ -8,7 +8,7 @@ import 'package:student_app/features/wallet/presentation/providers/wallet_provid
 import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui';
+
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -27,19 +27,19 @@ class _DashboardWrapperState extends State<DashboardWrapper> {
     final isDark = Provider.of<ThemeProvider>(context).isDarkMode;
     return CupertinoTabScaffold(
       tabBar: CupertinoTabBar(
-        backgroundColor: (isDark ? Colors.white : const Color(0xFF2E2A27)).withOpacity(0.05),
-        activeColor: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-        inactiveColor: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)).withOpacity(0.4),
-        border: null,
+        backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF),
+        activeColor: const Color(0xFF5C55ED), // Primary Blue/Purple
+        inactiveColor: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+        border: Border(top: BorderSide(color: isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0))),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.square_grid_2x2),
-            activeIcon: Icon(CupertinoIcons.square_grid_2x2_fill),
+            icon: Padding(padding: EdgeInsets.only(top: 4, bottom: 2), child: Icon(CupertinoIcons.square_grid_2x2)),
+            activeIcon: Padding(padding: EdgeInsets.only(top: 4, bottom: 2), child: Icon(CupertinoIcons.square_grid_2x2_fill)),
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.doc),
-            activeIcon: Icon(CupertinoIcons.doc_fill),
+            icon: Padding(padding: EdgeInsets.only(top: 4, bottom: 2), child: Icon(CupertinoIcons.doc)),
+            activeIcon: Padding(padding: EdgeInsets.only(top: 4, bottom: 2), child: Icon(CupertinoIcons.doc_fill)),
             label: 'Certs',
           ),
         ],
@@ -157,300 +157,229 @@ class _DashboardPageState extends State<DashboardPage> {
     );
     */
 
-    // ──────── NEW PREMIUM GLASSMORPHISM DESIGN ────────
+    // Theme Colors
+    final bgColor = isDark ? const Color(0xFF0D1117) : const Color(0xFFF4F6F9);
+    final cardColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+    final subLabelColor = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final primaryColor = const Color(0xFF5C55ED); 
+    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
+
     return CupertinoPageScaffold(
-      backgroundColor: Colors.black, 
-      child: Stack(
-        children: [
-          // ── Animated Background Gradient ──
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [const Color(0xFF0F0E0D), const Color(0xFF1C1A18), const Color(0xFF0F0E0D)] // Dark Coffee
-                      : [const Color(0xFFFAFAF9), const Color(0xFFF5F5DC), const Color(0xFFE7E5E4)], // Warm Beige / Stone
-                ),
-              ),
-            ),
-          ),
-
-          // ── Ambient Blur Orbs for Depth ──
-          Positioned(
-            top: -100,
-            left: -100,
-            child: _blurCircle(450, isDark ? Colors.blue.withOpacity(0.35) : Colors.orange.withOpacity(0.15)),
-          ),
-          Positioned(
-            bottom: -150,
-            right: -100,
-            child: _blurCircle(550, isDark ? Colors.purple.withOpacity(0.25) : Colors.brown.withOpacity(0.1)),
-          ),
-          Positioned(
-            top: 250,
-            right: -100,
-            child: _blurCircle(350, isDark ? Colors.cyan.withOpacity(0.15) : Colors.orange.withOpacity(0.08)),
-          ),
-
-          // ── Dashboard Content ──
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              const SliverPadding(padding: EdgeInsets.only(top: 100)), // Space for fixed header
-              SliverToBoxAdapter(
-                child: walletProvider.isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.only(top: 150),
-                        child: Center(child: CupertinoActivityIndicator(color: Colors.white)),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Greeting Widget
-                            _buildPremiumGlassGreeting(context, walletData),
-                            const SizedBox(height: 35),
-
-                            // Statistics Grid
-                            Padding(
-                              padding: const EdgeInsets.only(left: 4, bottom: 18),
-                              child: Text(
-                                'Your Progress',
-                                style: TextStyle(
-                                  fontSize: 22, 
-                                  fontWeight: FontWeight.bold,
-                                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                            ),
-                            _buildPremiumGlassStats(context, walletData),
-                            const SizedBox(height: 40),
-
-                            // Recent Activity
-                            Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'Recent activity',
-                                    style: TextStyle(
-                                      fontSize: 22, 
-                                      fontWeight: FontWeight.bold,
-                                      color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                  CupertinoButton(
-                                    padding: EdgeInsets.zero,
-                                    onPressed: () {},
-                                    child: Text(
-                                      'View all', 
-                                      style: TextStyle(
-                                        fontSize: 15, 
-                                        color: isDark ? const Color(0xFFF1EDE8).withOpacity(0.6) : const Color(0xFF6D655F),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildPremiumGlassHistory(context, walletData),
-                            const SizedBox(height: 100), 
-                          ],
+      backgroundColor: bgColor, 
+      child: SafeArea(
+        child: Column(
+          children: [
+            // ── Fixed Custom Premium Header ──
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              color: bgColor,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Dashboard',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => themeProvider.toggleTheme(),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: primaryColor, size: 20),
                         ),
                       ),
-              ),
-            ],
-          ),
-
-          // ── Fixed Custom Premium Header ──
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildCustomPremiumHeader(context, 'Dashboard', themeProvider),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomPremiumHeader(BuildContext context, String title, ThemeProvider themeProvider) {
-    bool isDark = themeProvider.isDarkMode;
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top,
-            left: 20,
-            right: 20,
-            bottom: 15,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            border: Border(
-              bottom: BorderSide(color: Colors.white.withOpacity(0.1), width: 1.5),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Row(
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => themeProvider.toggleTheme(),
-                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill, isDark),
-                  ),
-                  const SizedBox(width: 12),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () async {
-                      await Provider.of<WalletProvider>(context, listen: false).logout();
-                      if (context.mounted) {
-                        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                          CupertinoPageRoute(builder: (_) => const LoginPage()), 
-                          (route) => false
-                        );
-                      }
-                    },
-                    child: _glassButtonIcon(CupertinoIcons.power, isDark, isLogout: true),
+                      const SizedBox(width: 12),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () async {
+                          await Provider.of<WalletProvider>(context, listen: false).logout();
+                          if (context.mounted) {
+                            Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                              CupertinoPageRoute(builder: (_) => const LoginPage()), 
+                              (route) => false
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(CupertinoIcons.square_arrow_right, color: Color(0xFFEF4444), size: 18),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+
+            // ── Dashboard Content ──
+            Expanded(
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: walletProvider.isLoading
+                        ? const Padding(
+                            padding: EdgeInsets.only(top: 150),
+                            child: Center(child: CupertinoActivityIndicator()),
+                          )
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Greeting Widget
+                                _buildPremiumGlassGreeting(context, walletData),
+                                const SizedBox(height: 30),
+
+                                // Statistics Grid
+                                Text(
+                                  'YOUR PROGRESS',
+                                  style: TextStyle(
+                                    fontSize: 12, 
+                                    fontWeight: FontWeight.bold,
+                                    color: subLabelColor,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                _buildPremiumGlassStats(context, walletData),
+                                const SizedBox(height: 30),
+
+                                // Recent Activity
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'RECENT ACTIVITY',
+                                      style: TextStyle(
+                                        fontSize: 12, 
+                                        fontWeight: FontWeight.bold,
+                                        color: subLabelColor,
+                                        letterSpacing: 1.5,
+                                      ),
+                                    ),
+                                    CupertinoButton(
+                                      padding: EdgeInsets.zero,
+                                      onPressed: () {},
+                                      child: Text(
+                                        'View all', 
+                                        style: TextStyle(
+                                          fontSize: 13, 
+                                          color: primaryColor,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                _buildPremiumGlassHistory(context, walletData),
+                                const SizedBox(height: 100), 
+                              ],
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ── Premium Glass Component Builders ──
-
-  Widget _glassButtonIcon(IconData icon, bool isDark, {bool isLogout = false}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isLogout 
-            ? const Color(0xFFF87171).withOpacity(0.12) // Subtle Red for Logout
-            : Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isLogout ? const Color(0xFFF87171).withOpacity(0.3) : Colors.white.withOpacity(0.25), 
-          width: 1
-        ),
-      ),
-      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)), size: 20),
-    );
-  }
+  // ── Clean Components Builders ──
 
   Widget _buildPremiumGlassGreeting(BuildContext context, WalletData? data) {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
     final name = data?.certificates.isNotEmpty == true 
         ? data!.certificates.first.recipientDisplay 
         : 'Student';
+    final email = data?.session.email ?? 'authenticating...';
+    final primaryColor = const Color(0xFF5C55ED);
 
-    return _glassmorphismCard(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          )
+        ]
+      ),
       child: Row(
         children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Text('C', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Good morning,', 
-                  style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                 ),
-                const SizedBox(height: 6),
                 Text(
                   name,
-                  style: TextStyle(
-                    fontSize: 28, 
-                    fontWeight: FontWeight.w900, 
-                    color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                    letterSpacing: -0.8,
+                  style: const TextStyle(
+                    fontSize: 22, 
+                    fontWeight: FontWeight.bold, 
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(100),
-                    border: Border.all(color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.15)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(CupertinoIcons.mail, size: 12, color: (isDark ? const Color(0xFFF1EDE8) : Colors.white).withOpacity(0.6)),
-                      const SizedBox(width: 8),
-                      Text(
-                        data?.session.email ?? 'authenticating...',
-                        style: TextStyle(
-                          fontSize: 11, 
-                          fontWeight: FontWeight.w600, 
-                          color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7),
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 2),
+                Text(
+                  email, 
+                  style: const TextStyle(
+                    fontSize: 12, 
+                    color: Colors.white70,
                   ),
                 ),
               ],
             ),
           ),
-          _premiumGlassAvatar(context),
         ],
-      ),
-    );
-  }
-
-  Widget _premiumGlassAvatar(BuildContext context) {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
-    return Container(
-      width: 70,
-      height: 70,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark 
-              ? [const Color(0xFFC8A27C), const Color(0xFFE6C7A1)] // Caramel to Latte (Dark Coffee)
-              : [const Color(0xFF78716C), const Color(0xFF44403C)], // Stone/Warm Grey (Light)
-        ),
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF78716C)).withOpacity(0.4),
-            blurRadius: 25,
-            offset: const Offset(0, 10),
-          )
-        ],
-      ),
-      child: Center(
-        child: Icon(CupertinoIcons.person_fill, color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFFFDFCF0), size: 32),
       ),
     );
   }
 
   Widget _buildPremiumGlassStats(BuildContext context, WalletData? data) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDark = themeProvider.isDarkMode;
+    final cardColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+    final subLabelColor = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
+
     return Row(
       children: [
         Expanded(
@@ -458,8 +387,9 @@ class _DashboardPageState extends State<DashboardPage> {
             context,
             'Achievements',
             data?.certificates.length.toString() ?? '0',
-            CupertinoIcons.app_badge_fill,
-            const Color(0xFFFACC15), // Amber
+            Icons.military_tech,
+            const Color(0xFFF59E0B), // Amber/Orange
+            cardColor, textColor, subLabelColor, borderColor,
           ),
         ),
         const SizedBox(width: 16),
@@ -468,46 +398,45 @@ class _DashboardPageState extends State<DashboardPage> {
             context,
             'Verification',
             data?.session.valid == true ? 'Active' : 'Pending',
-            CupertinoIcons.checkmark_seal_fill,
-            const Color(0xFF22D3EE), // Cyan
+            Icons.check_box_rounded,
+            const Color(0xFF10B981), // Green
+            cardColor, textColor, subLabelColor, borderColor,
+            valueColor: const Color(0xFF10B981),
           ),
         ),
       ],
     );
   }
 
-  Widget _premiumStatCard(BuildContext context, String label, String value, IconData icon, Color accentColor) {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
-    return _glassmorphismCard(
+  Widget _premiumStatCard(BuildContext context, String label, String value, IconData icon, Color accentColor, Color cardCol, Color textCol, Color subCol, Color borderCol, {Color? valueColor}) {
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardCol,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderCol),
+        boxShadow: valueColor == null ? [BoxShadow(blurRadius: 10, color: Colors.black.withOpacity(0.02), offset: const Offset(0, 4))] : [],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: accentColor.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Icon(icon, color: accentColor, size: 24),
-          ),
-          const SizedBox(height: 24),
+          Icon(icon, color: accentColor, size: 28),
+          const SizedBox(height: 20),
           Text(
             value, 
             style: TextStyle(
               fontSize: 24, 
-              fontWeight: FontWeight.w900, 
-              color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-              letterSpacing: -0.5,
+              fontWeight: FontWeight.bold, 
+              color: valueColor ?? textCol,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label, 
             style: TextStyle(
-              fontSize: 12, 
-              color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7),
-              fontWeight: FontWeight.w600,
+              fontSize: 13, 
+              color: subCol,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -516,21 +445,23 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildPremiumGlassHistory(BuildContext context, WalletData? data) {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDark = themeProvider.isDarkMode;
+    final cardColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+    final subLabelColor = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
+    final primaryColor = const Color(0xFF5C55ED);
+
     if (data == null || data.certificates.isEmpty) {
-      return _glassmorphismCard(
+      return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(60),
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(20), border: Border.all(color: borderColor)),
         child: Center(
-          child: Column(
-            children: [
-              Icon(CupertinoIcons.doc_fill, color: Colors.white.withOpacity(0.2), size: 40),
-              const SizedBox(height: 16),
-              Text(
-                'No activity recorded yet', 
-                style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontWeight: FontWeight.w500),
-              ),
-            ],
+          child: Text(
+            'No activity recorded yet', 
+            style: TextStyle(color: subLabelColor, fontWeight: FontWeight.w500),
           ),
         ),
       );
@@ -538,135 +469,81 @@ class _DashboardPageState extends State<DashboardPage> {
 
     final certs = data.certificates.take(3).toList();
 
-    return _glassmorphismCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: certs.asMap().entries.map((entry) {
-          final cert = entry.value;
-          final isLast = entry.key == certs.length - 1;
-          final date = DateTime.tryParse(cert.issuedAt);
-          final formattedDate = date != null ? DateFormat('MMM dd').format(date) : 'Recently';
+    return Column(
+      children: certs.map((cert) {
+        final date = DateTime.tryParse(cert.issuedAt);
+        final formattedDate = date != null ? DateFormat('MMM dd').format(date) : 'Mar 27';
 
-          return Column(
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-                child: Row(
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(CupertinoIcons.doc_fill, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.white.withOpacity(0.1)),
-                      ),
-                      child: const Icon(CupertinoIcons.doc_fill, color: Colors.white, size: 22),
-                    ),
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            cert.templateName, 
-                            style: TextStyle(
-                              color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27), 
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            cert.issuerName ?? 'JustyfAI Verified', 
-                            style: TextStyle(
-                              color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7), 
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                        ),
-                    ),
-                    CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      onPressed: () => _downloadCertificate(context, cert),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27)).withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(
-                          CupertinoIcons.cloud_download,
-                          color: isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27),
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
                     Text(
-                      formattedDate, 
+                      cert.templateName, 
                       style: TextStyle(
-                        color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), 
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        color: textColor, 
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      cert.issuerName ?? 'JustyfAI Verified', 
+                      style: TextStyle(
+                        color: subLabelColor, 
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (!isLast)
-                Padding(
-                  padding: const EdgeInsets.only(left: 80, right: 20),
-                  child: Container(
-                    height: 1, 
-                    color: Colors.white.withOpacity(0.08)
-                  ),
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(formattedDate, style: TextStyle(color: subLabelColor, fontSize: 12)),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text('ACTIVE', style: TextStyle(color: Color(0xFF10B981), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  )
+                ],
+              ),
             ],
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _glassmorphismCard({required Widget child, EdgeInsets? padding, double? width, double borderRadius = 30}) {
-    return Container(
-      width: width,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 30,
-            spreadRadius: -10,
-            offset: const Offset(0, 10),
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-            ),
-            child: child,
-          ),
-        ),
-      ),
+        );
+      }).toList(),
     );
   }
 
   Future<void> _downloadCertificate(BuildContext context, WalletCert cert) async {
     final downloadUrl = ApiConstants.downloadCertificate(cert.id);
     final safeName = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-    await _downloadAndOpenFile(context, downloadUrl, 'Certificate_\$safeName.pdf', openAfterDownload: false);
+    await _downloadAndOpenFile(context, downloadUrl, 'Certificate_$safeName.pdf', openAfterDownload: false);
   }
 
   Future<void> _downloadAndOpenFile(BuildContext context, String url, String fileName, {bool openAfterDownload = true}) async {
@@ -677,10 +554,10 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       String savePath;
       if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
-        savePath = '/storage/emulated/0/Download/\$fileName';
+        savePath = '/storage/emulated/0/Download/$fileName';
       } else {
         final directory = openAfterDownload ? await getTemporaryDirectory() : await getApplicationDocumentsDirectory();
-        savePath = '\${directory.path}/\$fileName';
+        savePath = '${directory.path}/$fileName';
       }
 
       final dio = Dio();
@@ -747,20 +624,4 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildRecentActivity(BuildContext context, WalletData? data) { ... }
   */
 
-
-  Widget _blurCircle(double size, Color color) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            color,
-            color.withOpacity(0),
-          ],
-        ),
-      ),
-    );
-  }
 }

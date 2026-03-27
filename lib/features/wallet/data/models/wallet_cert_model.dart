@@ -8,9 +8,9 @@ class WalletCert {
   final String? txHash;
   final String? network;
   final String? issuerName;
-  final String viewUrl;
-  final String downloadUrl;
-  final String verifyUrl;
+  String viewUrl;
+  String downloadUrl;
+  String verifyUrl;
 
   WalletCert({
     required this.id,
@@ -26,6 +26,18 @@ class WalletCert {
     required this.downloadUrl,
     required this.verifyUrl,
   });
+
+  void updateUrls(String serverIp) {
+    viewUrl = _fixUrl(viewUrl, serverIp);
+    downloadUrl = _fixUrl(downloadUrl, serverIp);
+    verifyUrl = _fixUrl(verifyUrl, serverIp);
+  }
+
+  String _fixUrl(String url, String ip) {
+    if (url.contains('localhost')) return url.replaceAll('localhost', ip);
+    if (url.contains('127.0.0.1')) return url.replaceAll('127.0.0.1', ip);
+    return url;
+  }
 
   factory WalletCert.fromJson(Map<String, dynamic> j) {
     return WalletCert(

@@ -15,7 +15,18 @@ class WalletRemoteDataSource {
       );
 
       if (response.data['success'] == true) {
-        return WalletData.fromJson(response.data['data']);
+        final data = WalletData.fromJson(response.data['data']);
+        
+        // Fix localhost URLs for all certificates so they work on mobile
+        // Dynamically get host (e.g., 192.168.1.3) from ApiConstants.baseUrl
+        final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.3';
+        
+        for (var cert in data.certificates) {
+          // This ensures that the URLs provided by the server are actually reachable
+          cert.updateUrls(serverIp);
+        }
+        
+        return data;
       } else {
         throw Exception(response.data['message'] ?? 'Failed to fetch wallet info');
       }
@@ -54,11 +65,13 @@ class WalletRemoteDataSource {
         }
 
         if (finalUrl != null) {
-          // If the backend returns localhost or anything that looks like internal address, attempt rewrite if it's on the same subnet
+          // Dynamically get host (e.g., 192.168.1.3) from ApiConstants.baseUrl
+          final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.3';
+          
           if (finalUrl.contains('localhost')) {
-             finalUrl = finalUrl.replaceAll('localhost', '192.168.1.3');
+             finalUrl = finalUrl.replaceAll('localhost', serverIp);
           } else if (finalUrl.contains('127.0.0.1')) {
-             finalUrl = finalUrl.replaceAll('127.0.0.1', '192.168.1.3');
+             finalUrl = finalUrl.replaceAll('127.0.0.1', serverIp);
           }
           return finalUrl;
         }

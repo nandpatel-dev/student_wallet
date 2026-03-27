@@ -1,15 +1,25 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Icons, Colors, Curves, BoxShadow, Offset, SelectableText, Theme, TargetPlatform;
+import 'package:flutter/material.dart'
+    show
+        Icons,
+        Colors,
+        Theme,
+        TargetPlatform,
+        ScaffoldMessenger,
+        SnackBar,
+        SnackBarBehavior,
+        RoundedRectangleBorder,
+        CircularProgressIndicator,
+        Divider;
 import 'package:provider/provider.dart';
-import 'package:student_app/core/theme/ios_theme.dart';
 import 'package:student_app/core/theme/theme_provider.dart';
 import 'package:student_app/features/wallet/presentation/providers/wallet_provider.dart';
 import 'package:student_app/features/wallet/data/models/wallet_cert_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:student_app/features/auth/presentation/pages/login_page.dart';
 import 'package:intl/intl.dart';
-import 'dart:ui';
-import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -26,484 +36,807 @@ class _CertificatesPageState extends State<CertificatesPage> {
   String _selectedFilter = 'All';
   final List<String> _filters = ['All', 'Active', 'Revoked', 'Frozen'];
 
+  /// Cert IDs currently in a loading (fetching/downloading) state.
+  final Set<String> _loadingCertIds = {};
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
   List<WalletCert> get _filteredCertificates {
-    final certs = Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
+    // Always use the State's own context here
+    final certs =
+        Provider.of<WalletProvider>(context, listen: false).walletData?.certificates ?? [];
     if (_selectedFilter == 'All') return certs;
     return certs.where((c) => c.lifecycle.state == _selectedFilter).toList();
   }
 
-  // ── VIEW Certificate ───────────────────────────
-  Future<void> _viewCertificate(BuildContext context, WalletCert cert) async {
-    final viewUrl = ApiConstants.viewCertificate(cert.id);
-    await _downloadAndOpenFile(context, viewUrl, 'view_${cert.id}.pdf', openAfterDownload: true);
+  void _setLoading(String certId, bool loading) {
+    if (!mounted) return;
+    setState(() {
+      loading ? _loadingCertIds.add(certId) : _loadingCertIds.remove(certId);
+    });
   }
 
-  // ── DOWNLOAD Certificate ───────────────────────
-  Future<void> _downloadCertificate(BuildContext context, WalletCert cert) async {
-    final downloadUrl = ApiConstants.downloadCertificate(cert.id);
-    // Sanitize filename for download
-    final safeName = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-    await _downloadAndOpenFile(context, downloadUrl, 'Certificate_$safeName.pdf', openAfterDownload: false);
+  bool _isLoading(String certId) => _loadingCertIds.contains(certId);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TOAST  – always uses this.context (State's own, always valid until dispose)
+  // ─────────────────────────────────────────────────────────────────────────
+  void _toast(String message, {bool isError = false}) {
+    if (!mounted) return;
+    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: isError
+            ? const Color(0xFFEF4444)
+            : (isDark ? const Color(0xFF5C55ED) : const Color(0xFF1E293B)).withOpacity(0.95),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
-  // ── VERIFY Certificate ─────────────────────────
-  Future<void> _verifyCertificate(BuildContext context, WalletCert cert) async {
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-    _showToast(context, 'Fetching verification link...');
+  // ─────────────────────────────────────────────────────────────────────────
+  // VIEW  –  GET /api/student-wallet/certificates/:id/view
+  //          Header: x-student-wallet
+  //          Server streams PDF bytes inline → we save to temp → OpenFilex
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _viewCertificate(WalletCert cert) async {
+    if (!mounted) return;
+    _setLoading(cert.id, true);
+
     try {
-      final shareUrl = await walletProvider.getShareableUrl(cert.id);
-      if (shareUrl != null && shareUrl.isNotEmpty) {
-        final finalUrl = shareUrl.contains('localhost') ? shareUrl.replaceAll('localhost', '192.168.1.21') : shareUrl;
-        final finalWithIp = finalUrl.contains('127.0.0.1') ? finalUrl.replaceAll('127.0.0.1', '192.168.1.21') : finalUrl;
-
-        _showToast(context, 'Opening verification page...');
-        await launchUrl(Uri.parse(finalWithIp), mode: LaunchMode.externalApplication);
-      } else {
-        throw Exception(walletProvider.error ?? 'Verification URL not found');
+      // 1. Get auth token
+      final token =
+          await Provider.of<WalletProvider>(context, listen: false).getToken();
+      if (token == null || token.isEmpty) {
+        _toast('Authentication token missing', isError: true);
+        return;
       }
-    } catch (e) {
-      if (context.mounted) _showToast(context, "Verification failed: ${e.toString().split('Exception: ').last}", isError: true);
-    }
-  }
 
-  Future<void> _downloadAndOpenFile(BuildContext context, String url, String fileName, {bool openAfterDownload = true}) async {
-    final walletProvider = Provider.of<WalletProvider>(context, listen: false);
-    final token = await walletProvider.getToken();
-    _showToast(context, openAfterDownload ? 'Getting document...' : 'Downloading to local storage...');
+      _toast('Fetching PDF…');
 
-    try {
-      String savePath;
-      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
-        // Attempt to save to public Downloads on Android
-        savePath = '/storage/emulated/0/Download/$fileName';
-      } else {
-        final directory = openAfterDownload ? await getTemporaryDirectory() : await getApplicationDocumentsDirectory();
-        savePath = '${directory.path}/$fileName';
+      // 2. GET the PDF. Prefer the URL from the model (server-provided), fallback to constant.
+      String url = cert.viewUrl.isNotEmpty ? cert.viewUrl : ApiConstants.viewCertificate(cert.id);
+      
+      // If relative, prepend host
+      if (!url.startsWith('http')) {
+        url = '${ApiConstants.baseUrl.split('/api')[0]}$url';
       }
 
       final dio = Dio();
-      await dio.download(
+      final response = await dio.get<List<int>>(
+        url,
+        options: Options(
+          headers: {'x-student-wallet': token},
+          responseType: ResponseType.bytes,
+          followRedirects: true,
+          validateStatus: (s) => s != null && s < 500,
+        ),
+      );
+
+      if (!mounted) return;
+
+      // 3. Status checks
+      if (response.statusCode == 401) {
+        _toast('Session expired. Please log in again.', isError: true);
+        return;
+      }
+      if (response.statusCode != 200) {
+        String msg = 'Server error ${response.statusCode}';
+        try {
+          final body = String.fromCharCodes((response.data ?? []).take(200));
+          if (body.isNotEmpty && !body.startsWith('%PDF')) msg += ' – $body';
+        } catch (_) {}
+        _toast(msg, isError: true);
+        return;
+      }
+
+      // 4. Validate it really is a PDF (magic bytes %PDF = 0x25 0x50 0x44 0x46)
+      final bytes = response.data;
+      if (bytes == null || bytes.isEmpty) {
+        _toast('Empty response from server', isError: true);
+        return;
+      }
+
+      final contentType = response.headers.value('content-type') ?? '';
+      final isPdf = bytes.length > 4 &&
+          bytes[0] == 0x25 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x44 &&
+          bytes[3] == 0x46;
+
+      if (!isPdf) {
+        final preview = String.fromCharCodes(bytes.take(300));
+        debugPrint('[VIEW] Non-PDF – Content-Type: $contentType');
+        debugPrint('[VIEW] Body: $preview');
+        _toast('Server did not return a PDF. See console.', isError: true);
+        return;
+      }
+
+      // 5. Save bytes to temp directory
+      _toast('Opening PDF…');
+      final tempDir = await getTemporaryDirectory();
+      final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      final savePath = '${tempDir.path}/view_$safe.pdf';
+      await File(savePath).writeAsBytes(bytes, flush: true);
+
+      if (!mounted) return;
+
+      // 6. Open with device PDF viewer
+      final result = await OpenFilex.open(savePath);
+      if (result.type != ResultType.done && mounted) {
+        _toast(
+          result.type == ResultType.noAppToOpen
+              ? 'No PDF viewer installed on this device'
+              : 'Cannot open PDF: ${result.message}',
+          isError: true,
+        );
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        _toast(
+          e.response?.statusCode == 401
+              ? 'Session expired. Please log in again.'
+              : 'Failed to fetch PDF: ${e.message}',
+          isError: true,
+        );
+      }
+    } catch (e) {
+      if (mounted) _toast('View error: $e', isError: true);
+    } finally {
+      _setLoading(cert.id, false);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // DOWNLOAD  –  GET /api/student-wallet/certificates/:id/download
+  //              Header: x-student-wallet
+  //              Saves PDF to app documents directory (works on all Android versions)
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _downloadCertificate(WalletCert cert) async {
+    if (!mounted) return;
+    _setLoading(cert.id, true);
+
+    try {
+      // 1. Get auth token
+      final token =
+          await Provider.of<WalletProvider>(context, listen: false).getToken();
+      if (token == null || token.isEmpty) {
+        _toast('Authentication token missing', isError: true);
+        return;
+      }
+
+      _toast('Downloading PDF…');
+
+      // 2. Determine save path
+      //    Android 10+ scoped storage: use getApplicationDocumentsDirectory (no perms needed)
+      //    Android 9 and below: try /storage/emulated/0/Download, fallback to app docs
+      String savePath;
+      final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+      final fileName = 'Certificate_$safe.pdf';
+
+      if (Theme.of(context).platform == TargetPlatform.android) {
+        try {
+          // Attempt public Downloads folder (works on Android ≤ 9)
+          savePath = '/storage/emulated/0/Download/$fileName';
+        } catch (_) {
+          final dir = await getApplicationDocumentsDirectory();
+          savePath = '${dir.path}/$fileName';
+        }
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        savePath = '${dir.path}/$fileName';
+      }
+
+      // 3. GET PDF via Dio download. Prefer server-provided URL.
+      String url = cert.downloadUrl.isNotEmpty ? cert.downloadUrl : ApiConstants.downloadCertificate(cert.id);
+      if (!url.startsWith('http')) {
+        url = '${ApiConstants.baseUrl.split('/api')[0]}$url';
+      }
+
+      final dio = Dio();
+      final response = await dio.download(
         url,
         savePath,
         options: Options(
           headers: {'x-student-wallet': token},
           responseType: ResponseType.bytes,
           followRedirects: true,
-          validateStatus: (status) => status != null && status < 500,
+          validateStatus: (s) => s != null && s < 500,
         ),
       );
 
-      if (openAfterDownload) {
-        _showToast(context, 'Opening document...');
-        final result = await OpenFilex.open(savePath);
-        if (result.type != ResultType.done) {
-          throw Exception(result.message);
-        }
-      } else {
-        _showToast(context, '✅ Downloaded to device storage!');
+      if (!mounted) return;
+
+      if (response.statusCode == 401) {
+        _toast('Session expired. Please log in again.', isError: true);
+        return;
+      }
+      if (response.statusCode != 200) {
+        _toast('Server error: ${response.statusCode}', isError: true);
+        return;
+      }
+
+      _toast('✅ PDF saved! Open in your Files app.');
+    } on DioException catch (e) {
+      if (!mounted) return;
+      if (e.response?.statusCode == 401) {
+        _toast('Session expired. Please log in again.', isError: true);
+        return;
+      }
+      // Fallback: try app documents directory
+      try {
+        final token2 =
+            await Provider.of<WalletProvider>(context, listen: false).getToken();
+        final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
+        final dir = await getApplicationDocumentsDirectory();
+        final fallback = '${dir.path}/Certificate_$safe.pdf';
+        await Dio().download(
+          ApiConstants.downloadCertificate(cert.id),
+          fallback,
+          options: Options(
+            headers: {'x-student-wallet': token2},
+            responseType: ResponseType.bytes,
+          ),
+        );
+        if (mounted) _toast('✅ PDF saved to app storage!');
+      } catch (_) {
+        if (mounted) _toast('Download failed: ${e.message}', isError: true);
       }
     } catch (e) {
-      // Fallback for Android if public storage fails (Android 10+ scoped storage)
-      if (!openAfterDownload && Theme.of(context).platform == TargetPlatform.android) {
-        try {
-          final directory = await getApplicationDocumentsDirectory();
-          final fallbackPath = '${directory.path}/$fileName';
-          await Dio().download(url, fallbackPath, options: Options(headers: {'x-student-wallet': token}));
-          _showToast(context, '✅ Saved to app documents!');
-          return;
-        } catch (_) {}
-      }
-      if (context.mounted) _showToast(context, 'Error: \${e.toString()}', isError: true);
+      if (mounted) _toast('Download error: $e', isError: true);
+    } finally {
+      _setLoading(cert.id, false);
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // VERIFY / SHARE  –  POST /api/student-wallet/certificates/:id/share
+  //                    Header: x-student-wallet
+  //                    Returns: shareable verification URL → open in browser
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _verifyCertificate(WalletCert cert) async {
+    if (!mounted) return;
 
+    if (cert.lifecycle.state != 'Active') {
+      _toast(
+        'Verification unavailable — certificate is ${cert.lifecycle.state}',
+        isError: true,
+      );
+      return;
+    }
 
-  void _showToast(BuildContext context, String message, {bool isError = false}) {
-    // Simple toast notification system
+    _setLoading(cert.id, true);
+    _toast('Fetching verification link…');
+
+    try {
+      final walletProvider =
+          Provider.of<WalletProvider>(context, listen: false);
+
+      // POST …/share  (header: x-student-wallet) → returns shareable URL
+      final shareUrl = await walletProvider.getShareableUrl(cert.id);
+
+      if (!mounted) return;
+
+      if (shareUrl != null && shareUrl.isNotEmpty) {
+        final uri = Uri.tryParse(shareUrl);
+        if (uri == null || !uri.hasScheme) {
+          _toast('Invalid URL returned by server', isError: true);
+          return;
+        }
+        _toast('Opening verification page…');
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _toast(walletProvider.error ?? 'Verification URL not found', isError: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        _toast(
+          'Verify error: ${e.toString().split('Exception: ').last}',
+          isError: true,
+        );
+      }
+    } finally {
+      _setLoading(cert.id, false);
+    }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // Action sheet  – uses sheetCtx (sheet's own context) to dismiss the sheet,
+  //                  and this.context (State context) for all API calls.
+  // ─────────────────────────────────────────────────────────────────────────
+  void _showCertificateDetail(WalletCert cert) {
+    showCupertinoModalPopup<void>(
+      context: context, // State's context → correct navigator scope
+      builder: (sheetCtx) => CupertinoActionSheet(
+        title: Text(
+          cert.templateName,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+        ),
+        message: Text('Certified by ${cert.issuerName ?? 'JustyfAI'}'),
+        actions: [
+          // ── View  (GET …/view) ──────────────────────────────
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(sheetCtx); // dismiss sheet using sheet's own ctx
+              _viewCertificate(cert);  // uses this.context internally
+            },
+            child: _actionRow(
+              CupertinoIcons.eye,
+              'View Certificate',
+              'Streams PDF inline',
+            ),
+          ),
+
+          // ── Download  (GET …/download) ──────────────────────
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(sheetCtx);
+              _downloadCertificate(cert);
+            },
+            child: _actionRow(
+              CupertinoIcons.cloud_download,
+              'Download PDF',
+              'Save to device storage',
+            ),
+          ),
+
+          // ── Verify  (POST …/share) ──────────────────────────
+          CupertinoActionSheetAction(
+            isDestructiveAction: cert.lifecycle.state != 'Active',
+            onPressed: () {
+              Navigator.pop(sheetCtx);
+              _verifyCertificate(cert);
+            },
+            child: _actionRow(
+              CupertinoIcons.checkmark_seal_fill,
+              'Verify Authenticity',
+              cert.lifecycle.state == 'Active'
+                  ? 'Get shareable verification URL'
+                  : 'Unavailable — cert is ${cert.lifecycle.state}',
+              disabled: cert.lifecycle.state != 'Active',
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          isDestructiveAction: true,
+          onPressed: () => Navigator.pop(sheetCtx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  // ── Action row widget (pure UI, no tap handling) ──────────────────────────
+  Widget _actionRow(
+    IconData icon,
+    String label,
+    String subtitle, {
+    bool disabled = false,
+  }) {
+    final iconColor = disabled ? const Color(0xFF94A3B8) : const Color(0xFF5C55ED);
+    final labelColor = disabled ? const Color(0xFF94A3B8) : null;
+    final subColor = disabled
+        ? const Color(0xFFEF4444).withOpacity(0.7)
+        : const Color(0xFF64748B);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 20, color: iconColor),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: labelColor,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 12, color: subColor),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Build
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
 
-    /*
-    // ──────── OLD DESIGN ────────
-    // ...
-    */
+    final bgColor   = isDark ? const Color(0xFF0D1117) : const Color(0xFFF4F6F9);
+    final cardColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+    final subLabel  = isDark ? const Color(0xFF64748B) : const Color(0xFF64748B);
+    final primary   = const Color(0xFF5C55ED);
+    final border    = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
 
-    // ──────── NEW PREMIUM GLASSMORPHISM DESIGN ────────
     return CupertinoPageScaffold(
-      backgroundColor: Colors.black, 
-      child: Stack(
-        children: [
-          // ── Gradient Background ──
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [const Color(0xFF0F0E0D), const Color(0xFF1C1A18), const Color(0xFF0F0E0D)] // Dark Coffee
-                      : [const Color(0xFFF5F5F4), const Color(0xFFF5F5DC), const Color(0xFFE7E5E4)], // Premium Beige Gradient
-                ),
+      backgroundColor: bgColor,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // ── Fixed Premium Header ──────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              color: bgColor,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Certificates',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => themeProvider.toggleTheme(),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: border),
+                          ),
+                          child: Icon(
+                            isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                            color: primary,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () async {
+                          await Provider.of<WalletProvider>(context, listen: false)
+                              .logout();
+                          if (mounted) {
+                            Navigator.of(context, rootNavigator: true)
+                                .pushAndRemoveUntil(
+                              CupertinoPageRoute(
+                                  builder: (_) => const LoginPage()),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            CupertinoIcons.square_arrow_right,
+                            color: Color(0xFFEF4444),
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-          ),
 
-          // ── Premium Blur Orbs ──
-          Positioned(
-            top: 50,
-            right: -100,
-            child: _blurCircle(450, isDark ? Colors.purple.withOpacity(0.3) : Colors.brown.withOpacity(0.15)),
-          ),
-          Positioned(
-            bottom: 100,
-            left: -150,
-            child: _blurCircle(500, isDark ? Colors.blue.withOpacity(0.2) : Colors.orange.withOpacity(0.1)),
-          ),
-
-          // ── Main Content ──
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              const SliverPadding(padding: EdgeInsets.only(top: 100)), // Space for fixed header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-                  child: Column(
-                    children: [
-                      // Glassy Filter Control
-                      _glassmorphismContainer(
+            // ── Main Scrollable Content ───────────────────────────────────
+            Expanded(
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // Filter segmented control
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 8),
+                      child: Container(
                         padding: const EdgeInsets.all(4),
-                        borderRadius: 16,
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: border),
+                        ),
                         child: SizedBox(
                           width: double.infinity,
                           child: CupertinoSlidingSegmentedControl<String>(
                             groupValue: _selectedFilter,
                             backgroundColor: Colors.transparent,
-                            thumbColor: Colors.white.withOpacity(0.15),
+                            thumbColor: isDark
+                                ? const Color(0xFF30363D)
+                                : const Color(0xFFE2E8F0),
                             onValueChanged: (val) {
-                              if (val != null) setState(() => _selectedFilter = val);
+                              if (val != null) {
+                                setState(() => _selectedFilter = val);
+                              }
                             },
                             children: {
-                              for (var f in _filters)
+                              for (final f in _filters)
                                 f: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
                                   child: Text(
-                                    f, 
+                                    f,
                                     style: TextStyle(
-                                      color: _selectedFilter == f 
-                                          ? (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)) 
-                                          : (isDark ? const Color(0xFFF1EDE8).withOpacity(0.5) : const Color(0xFF9C938C)),
-                                      fontSize: 14,
-                                      fontWeight: _selectedFilter == f ? FontWeight.bold : FontWeight.w500,
+                                      color: _selectedFilter == f
+                                          ? primary
+                                          : subLabel,
+                                      fontSize: 13,
+                                      fontWeight: _selectedFilter == f
+                                          ? FontWeight.bold
+                                          : FontWeight.w500,
                                     ),
                                   ),
-                                )
+                                ),
                             },
                           ),
                         ),
                       ),
-                      const SizedBox(height: 25),
-                    ],
-                  ),
-                ),
-              ),
-              _filteredCertificates.isEmpty
-                  ? SliverFillRemaining(
-                      child: Center(
-                        child: Text(
-                          'No records found under this filter', 
-                          style: TextStyle(color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontSize: 15),
-                        ),
-                      ),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                      sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 16),
-                              child: _buildPremiumCertificateCard(context, _filteredCertificates[index]),
-                            );
-                          },
-                          childCount: _filteredCertificates.length,
-                        ),
-                      ),
                     ),
-            ],
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+
+                  // List or empty state
+                  _filteredCertificates.isEmpty
+                      ? SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  CupertinoIcons.doc_text,
+                                  size: 48,
+                                  color: subLabel.withOpacity(0.5),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No records found',
+                                  style:
+                                      TextStyle(color: subLabel, fontSize: 15),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : SliverPadding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 24),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (_, index) {
+                                final cert = _filteredCertificates[index];
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _buildCard(
+                                    cert,
+                                    cardColor,
+                                    textColor,
+                                    subLabel,
+                                    border,
+                                    primary,
+                                  ),
+                                );
+                              },
+                              childCount: _filteredCertificates.length,
+                            ),
+                          ),
+                        ),
+
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 40)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Certificate card ──────────────────────────────────────────────────────
+  Widget _buildCard(
+    WalletCert cert,
+    Color cardColor,
+    Color textColor,
+    Color subLabel,
+    Color border,
+    Color primary,
+  ) {
+    final date = DateTime.tryParse(cert.issuedAt);
+    final formatted =
+        date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
+    final loading = _isLoading(cert.id);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        children: [
+          // ── Top part (Clickable to show full details modal) ────
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            onPressed: loading ? null : () => _showCertificateDetail(cert),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: loading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(CupertinoIcons.doc_fill,
+                            color: Colors.white, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cert.templateName,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          cert.issuerName ?? 'JustyfAI Verified',
+                          style: TextStyle(fontSize: 13, color: subLabel),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          formatted,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: subLabel.withOpacity(0.8),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _statusBadge(cert.lifecycle.state),
+                ],
+              ),
+            ),
           ),
 
-          // ── Fixed Custom Premium Header ──
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildCustomPremiumHeader(context, 'Certificates', themeProvider),
+          // ── Footer part (The 3 buttons) ───────────────────────
+          Divider(height: 1, thickness: 0.5, color: Colors.transparent),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _cardActionButton(
+                  icon: CupertinoIcons.eye_fill,
+                  label: 'View',
+                  onPressed: loading ? null : () => _viewCertificate(cert),
+                  color: primary,
+                  textColor: textColor,
+                ),
+                _cardActionButton(
+                  icon: CupertinoIcons.cloud_download_fill,
+                  label: 'Download',
+                  onPressed: loading ? null : () => _downloadCertificate(cert),
+                  color: primary,
+                  textColor: textColor,
+                ),
+                _cardActionButton(
+                  icon: CupertinoIcons.checkmark_seal_fill,
+                  label: 'Verify',
+                  onPressed: loading || cert.lifecycle.state != 'Active' 
+                      ? null 
+                      : () => _verifyCertificate(cert),
+                  color: cert.lifecycle.state == 'Active' ? primary : Colors.grey,
+                  textColor: textColor,
+                  isDisabled: cert.lifecycle.state != 'Active',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
+  }
+
+  // ── Card action button helper ─────────────────────────────────────────────
+  Widget _cardActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+    required Color color,
+    required Color textColor,
+    bool isDisabled = false,
+  }) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(isDisabled ? 0.05 : 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: isDisabled ? Colors.grey : color),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDisabled ? Colors.grey : textColor.withOpacity(0.8),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCustomPremiumHeader(BuildContext context, String title, ThemeProvider themeProvider) {
-    bool isDark = themeProvider.isDarkMode;
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: EdgeInsets.only(
-            top: MediaQuery.of(context).padding.top,
-            left: 20,
-            right: 20,
-            bottom: 15,
-          ),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            border: Border(
-              bottom: BorderSide(color: Colors.white.withOpacity(0.1), width: 1.5),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                  letterSpacing: -0.5,
-                ),
-              ),
-              Row(
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () => themeProvider.toggleTheme(),
-                    child: _glassButtonIcon(isDark ? CupertinoIcons.sun_max : CupertinoIcons.moon_fill, isDark),
-                  ),
-                  const SizedBox(width: 12),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: () async {
-                      await Provider.of<WalletProvider>(context, listen: false).logout();
-                      if (context.mounted) {
-                        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                          CupertinoPageRoute(builder: (_) => const LoginPage()), 
-                          (route) => false
-                        );
-                      }
-                    },
-                    child: _glassButtonIcon(CupertinoIcons.power, isDark, isLogout: true),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _glassButtonIcon(IconData icon, bool isDark, {bool isLogout = false}) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: isLogout 
-            ? const Color(0xFFF87171).withOpacity(0.12) // Subtle Red for Logout
-            : Colors.white.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isLogout ? const Color(0xFFF87171).withOpacity(0.3) : Colors.white.withOpacity(0.25), 
-          width: 1
-        ),
-      ),
-      child: Icon(icon, color: isLogout ? const Color(0xFFF87171) : (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27)), size: 20),
-    );
-  }
-
-  Widget _buildPremiumCertificateCard(BuildContext context, WalletCert cert) {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
-    final date = DateTime.tryParse(cert.issuedAt);
-    final formattedDate = date != null ? DateFormat('MMM dd, yyyy').format(date) : cert.issuedAt;
-
-    return _glassmorphismContainer(
-      padding: EdgeInsets.zero,
-      borderRadius: 30,
-      child: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: () => _showCertificateDetail(context, cert),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              // Premium Icon Container
-              Container(
-                width: 55,
-                height: 55,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isDark 
-                        ? [const Color(0xFFC8A27C), const Color(0xFF1C1A18)] // Caramel to Roasted Dark
-                        : [const Color(0xFF78716C), const Color(0xFF44403C)], // Warm Grey/Stone for Light
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27)).withOpacity(0.3),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    )
-                  ],
-                ),
-                child: Icon(CupertinoIcons.doc_fill, color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFFFDFCF0), size: 28),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cert.templateName,
-                      style: TextStyle(
-                        fontSize: 17, 
-                        fontWeight: FontWeight.w800, 
-                        color: isDark ? const Color(0xFFF1EDE8) : const Color(0xFF2E2A27),
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      cert.issuerName ?? 'JustyfAI Verified',
-                      style: TextStyle(fontSize: 13, color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF6D655F)).withOpacity(0.7)),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    formattedDate, 
-                    style: TextStyle(fontSize: 12, color: (isDark ? const Color(0xFFF1EDE8) : const Color(0xFF9C938C)), fontWeight: FontWeight.w700)
-                  ),
-                  const SizedBox(height: 8),
-                  _premiumStatusBadge(cert.lifecycle.state),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _premiumStatusBadge(String state) {
-    final color = state == 'Active' ? const Color(0xFF22D3EE) : const Color(0xFFF87171);
+  // ── Status badge ──────────────────────────────────────────────────────────
+  Widget _statusBadge(String state) {
+    final color =
+        state == 'Active' ? const Color(0xFF10B981) : const Color(0xFFEF4444);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(100),
-        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Text(
         state.toUpperCase(),
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 0.5),
-      ),
-    );
-  }
-
-  Widget _glassmorphismContainer({required Widget child, EdgeInsets? padding, double borderRadius = 30}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-          ),
-          child: child,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: color,
+          letterSpacing: 0.5,
         ),
       ),
     );
   }
-
-  void _showCertificateDetail(BuildContext context, WalletCert cert) {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: CupertinoActionSheet(
-          title: Text(cert.templateName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          message: Text('Certified by ${cert.issuerName ?? 'JustyfAI'}'),
-          actions: [
-            _actionItem(CupertinoIcons.eye, 'View Certificate', () {
-              Navigator.pop(context);
-              _viewCertificate(context, cert);
-            }),
-            _actionItem(CupertinoIcons.cloud_download, 'Download (PDF)', () {
-              Navigator.pop(context);
-              _downloadCertificate(context, cert);
-            }),
-            _actionItem(CupertinoIcons.checkmark_seal_fill, 'Verify Authenticity', () {
-              Navigator.pop(context);
-              _verifyCertificate(context, cert);
-            }),
-          ],
-          cancelButton: CupertinoActionSheetAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel Request'),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _actionItem(IconData icon, String label, VoidCallback onPressed) {
-    return CupertinoActionSheetAction(
-      onPressed: onPressed,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF3B82F6)),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-
-  Widget _blurCircle(double size, Color color) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color, color.withOpacity(0)],
-        ),
-      ),
-    );
-  }
-
-  /*
-  // ── OLD METHODS (Commented out) ──
-  Widget _buildCertificateCard(BuildContext context, WalletCert cert) { ... }
-  Widget _statusBadge(String state) { ... }
-  */
-
 }
