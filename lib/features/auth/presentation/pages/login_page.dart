@@ -90,81 +90,183 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   }
 
   void _showOtpDialog() {
-    final isDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDark = themeProvider.isDarkMode;
+    final cardColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFFFFFF);
+    final textColor = isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B);
+    final subLabelColor = const Color(0xFF64748B);
+    final primaryColor = const Color(0xFF5C55ED);
+    final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFE2E8F0);
+
     _otpController.clear();
-    showCupertinoModalPopup(
+
+    showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => CupertinoActionSheet(
-        title: const Text('Verify Your Email'),
-        message: Column(
-          children: [
-            const Text('Enter the 6-digit OTP sent to'),
-            Text(_emailController.text, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            CupertinoTextField(
-              controller: _otpController,
-              keyboardType: TextInputType.number,
-              maxLength: 6,
-              textAlign: TextAlign.center,
-              autofocus: true,
-              placeholder: '· · · · · ·',
-              placeholderStyle: TextStyle(
-                fontSize: 32, 
-                letterSpacing: 8, 
-                color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
-              ),
-              style: TextStyle(
-                fontSize: 32, 
-                letterSpacing: 8, 
-                fontWeight: FontWeight.bold,
-                color: isDark 
-                    ? const Color(0xFFC8A27C) // Caramel Gold (Dark Coffee Theme)
-                    : const Color(0xFF78350F), // Deep Amber/Brown (Light Beige Theme)
-              ),
-              decoration: BoxDecoration(
-                color: (isDark ? const Color(0xFFF1EDE8) : Colors.black).withOpacity(0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: (isDark ? const Color(0xFFF1EDE8) : Colors.black).withOpacity(0.1),
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withOpacity(0.5),
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, _, __) => Container(),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          child: FadeTransition(
+            opacity: animation,
+            child: Center(
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.85,
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.2),
+                        blurRadius: 30,
+                        offset: const Offset(0, 15),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header Icon
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.verified_user_rounded, color: primaryColor, size: 32),
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      Text(
+                        'Verify Access',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: textColor,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          style: TextStyle(color: subLabelColor, fontSize: 14, height: 1.5),
+                          children: [
+                            const TextSpan(text: 'We sent a 6-digit verification\ncode to '),
+                            TextSpan(
+                              text: _emailController.text,
+                              style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // OTP Input
+                      CupertinoTextField(
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        autofocus: true,
+                        placeholder: '0 0 0 0 0 0',
+                        placeholderStyle: TextStyle(
+                          fontSize: 28, 
+                          letterSpacing: 8, 
+                          color: subLabelColor.withOpacity(0.2),
+                        ),
+                        style: TextStyle(
+                          fontSize: 28, 
+                          letterSpacing: 8, 
+                          fontWeight: FontWeight.w800,
+                          color: primaryColor,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      // Action Buttons
+                      Consumer<WalletProvider>(
+                        builder: (context, walletProvider, _) => Column(
+                          children: [
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: CupertinoButton(
+                                padding: EdgeInsets.zero,
+                                color: primaryColor,
+                                borderRadius: BorderRadius.circular(16),
+                                onPressed: walletProvider.isLoading ? null : () async {
+                                  final success = await walletProvider.verifyOtp(
+                                    _emailController.text, _otpController.text);
+                                  if (success) {
+                                    if (mounted) {
+                                      _showToast('Verification Successful');
+                                      Navigator.pop(context);
+                                      Navigator.pushReplacement(
+                                        context,
+                                        CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
+                                      );
+                                    }
+                                  } else {
+                                    if (mounted) {
+                                      _showToast(walletProvider.error ?? 'Invalid Code', isError: true);
+                                    }
+                                  }
+                                },
+                                child: walletProvider.isLoading
+                                    ? const CupertinoActivityIndicator(color: Colors.white)
+                                    : const Text(
+                                        'Authenticate',
+                                        style: TextStyle(
+                                          color: Colors.white, 
+                                          fontWeight: FontWeight.w800, 
+                                          fontSize: 16,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: subLabelColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-        actions: [
-          Consumer<WalletProvider>(
-            builder: (context, walletProvider, _) => CupertinoActionSheetAction(
-              onPressed: walletProvider.isLoading ? () {} : () async {
-                final success = await walletProvider.verifyOtp(
-                    _emailController.text, _otpController.text);
-                if (success) {
-                  if (mounted) {
-                    _showToast('Verification successful! Welcome back.');
-                    Navigator.pop(context);
-                    Navigator.pushReplacement(
-                      context,
-                      CupertinoPageRoute(builder: (_) => const DashboardWrapper()),
-                    );
-                  }
-                } else {
-                  if (mounted) {
-                    _showToast(walletProvider.error ?? 'Invalid OTP. Please try again.', isError: true);
-                  }
-                }
-              },
-              child: walletProvider.isLoading
-                  ? const CupertinoActivityIndicator()
-                  : Text('Verify & Continue', style: TextStyle(color: isDark ? const Color(0xFFC8A27C) : const Color(0xFF2E2A27))),
-            ),
           ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(context),
-          isDestructiveAction: true,
-          child: const Text('Cancel'),
-        ),
-      ),
+        );
+      },
     );
   }
 
