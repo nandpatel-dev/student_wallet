@@ -19,7 +19,7 @@ class WalletRemoteDataSource {
         
         // Fix localhost URLs for all certificates so they work on mobile
         // Dynamically get host (e.g., 192.168.1.3) from ApiConstants.baseUrl
-        final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.3';
+        final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.4';
         
         for (var cert in data.certificates) {
           // This ensures that the URLs provided by the server are actually reachable
@@ -42,31 +42,36 @@ class WalletRemoteDataSource {
     try {
       final response = await dio.post(
         ApiConstants.shareCertificate(certId),
+        data: {}, // Some servers require an empty body for POST
         options: Options(
           headers: {'x-student-wallet': token},
+          validateStatus: (s) => s != null && s < 500, // Handle non-200 responses gracefully
         ),
       );
 
-      print('VERIFY API RESPONSE: \${response.data}');
+      print('VERIFY API RESPONSE: ${response.data}');
 
-      // Handle both wrapped {success: true, data: {url: ...}} and direct {shareUrl: ...} responses
+      // Handle common response formats
       if (response.data is Map) {
         final data = response.data;
         String? finalUrl;
 
-        if (data['success'] == true) {
-          final innerData = data['data'];
-          if (innerData is String) finalUrl = innerData;
-          else if (innerData is Map) {
-            finalUrl = innerData['url'] ?? innerData['shareUrl'] ?? innerData['verifyUrl'] ?? innerData.toString();
+        // Check for common URL fields directly or in 'data' wrapper
+        if (data['success'] == true && data['data'] != null) {
+          final inner = data['data'];
+          if (inner is String) {
+            finalUrl = inner;
+          } else if (inner is Map) {
+            finalUrl = inner['url'] ?? inner['shareUrl'] ?? inner['verifyUrl'];
           }
-        } else if (data['shareUrl'] != null || data['url'] != null || data['verifyUrl'] != null) {
-           finalUrl = data['shareUrl'] ?? data['url'] ?? data['verifyUrl'];
+        } else {
+          // Fallback to direct fields
+          finalUrl = data['shareUrl'] ?? data['url'] ?? data['verifyUrl'];
         }
 
-        if (finalUrl != null) {
+        if (finalUrl != null && finalUrl is String) {
           // Dynamically get host (e.g., 192.168.1.3) from ApiConstants.baseUrl
-          final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.3';
+          final serverIp = Uri.tryParse(ApiConstants.baseUrl)?.host ?? '192.168.1.4';
           
           if (finalUrl.contains('localhost')) {
              finalUrl = finalUrl.replaceAll('localhost', serverIp);

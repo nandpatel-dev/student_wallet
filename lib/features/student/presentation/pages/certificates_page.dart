@@ -87,112 +87,82 @@ class _CertificatesPageState extends State<CertificatesPage> {
   //          Server streams PDF bytes inline → we save to temp → OpenFilex
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _viewCertificate(WalletCert cert) async {
-    if (!mounted) return;
-    _setLoading(cert.id, true);
+  if (!mounted) return;
+  _setLoading(cert.id, true);
 
-    try {
-      // 1. Get auth token
-      final token =
-          await Provider.of<WalletProvider>(context, listen: false).getToken();
-      if (token == null || token.isEmpty) {
-        _toast('Authentication token missing', isError: true);
-        return;
-      }
+  try {
+    final token =
+        await Provider.of<WalletProvider>(context, listen: false).getToken();
 
-      _toast('Fetching PDF…');
-
-      // 2. GET the PDF. Prefer the URL from the model (server-provided), fallback to constant.
-      String url = cert.viewUrl.isNotEmpty ? cert.viewUrl : ApiConstants.viewCertificate(cert.id);
-      
-      // If relative, prepend host
-      if (!url.startsWith('http')) {
-        url = '${ApiConstants.baseUrl.split('/api')[0]}$url';
-      }
-
-      final dio = Dio();
-      final response = await dio.get<List<int>>(
-        url,
-        options: Options(
-          headers: {'x-student-wallet': token},
-          responseType: ResponseType.bytes,
-          followRedirects: true,
-          validateStatus: (s) => s != null && s < 500,
-        ),
-      );
-
-      if (!mounted) return;
-
-      // 3. Status checks
-      if (response.statusCode == 401) {
-        _toast('Session expired. Please log in again.', isError: true);
-        return;
-      }
-      if (response.statusCode != 200) {
-        String msg = 'Server error ${response.statusCode}';
-        try {
-          final body = String.fromCharCodes((response.data ?? []).take(200));
-          if (body.isNotEmpty && !body.startsWith('%PDF')) msg += ' – $body';
-        } catch (_) {}
-        _toast(msg, isError: true);
-        return;
-      }
-
-      // 4. Validate it really is a PDF (magic bytes %PDF = 0x25 0x50 0x44 0x46)
-      final bytes = response.data;
-      if (bytes == null || bytes.isEmpty) {
-        _toast('Empty response from server', isError: true);
-        return;
-      }
-
-      final contentType = response.headers.value('content-type') ?? '';
-      final isPdf = bytes.length > 4 &&
-          bytes[0] == 0x25 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x44 &&
-          bytes[3] == 0x46;
-
-      if (!isPdf) {
-        final preview = String.fromCharCodes(bytes.take(300));
-        debugPrint('[VIEW] Non-PDF – Content-Type: $contentType');
-        debugPrint('[VIEW] Body: $preview');
-        _toast('Server did not return a PDF. See console.', isError: true);
-        return;
-      }
-
-      // 5. Save bytes to temp directory
-      _toast('Opening PDF…');
-      final tempDir = await getTemporaryDirectory();
-      final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-      final savePath = '${tempDir.path}/view_$safe.pdf';
-      await File(savePath).writeAsBytes(bytes, flush: true);
-
-      if (!mounted) return;
-
-      // 6. Open with device PDF viewer
-      final result = await OpenFilex.open(savePath);
-      if (result.type != ResultType.done && mounted) {
-        _toast(
-          result.type == ResultType.noAppToOpen
-              ? 'No PDF viewer installed on this device'
-              : 'Cannot open PDF: ${result.message}',
-          isError: true,
-        );
-      }
-    } on DioException catch (e) {
-      if (mounted) {
-        _toast(
-          e.response?.statusCode == 401
-              ? 'Session expired. Please log in again.'
-              : 'Failed to fetch PDF: ${e.message}',
-          isError: true,
-        );
-      }
-    } catch (e) {
-      if (mounted) _toast('View error: $e', isError: true);
-    } finally {
-      _setLoading(cert.id, false);
+    if (token == null || token.isEmpty) {
+      _toast('❌ Token missing', isError: true);
+      return;
     }
+
+    final url = ApiConstants.viewCertificate(cert.id);
+    debugPrint("VIEW URL: $url");
+
+    final dio = Dio();
+
+    final response = await dio.get(
+      url,
+      options: Options(
+        headers: {
+          'x-student-wallet': token,
+          // TRY THIS IF BACKEND USES AUTH HEADER
+          // 'Authorization': 'Bearer $token',
+        },
+        responseType: ResponseType.bytes,
+        validateStatus: (status) => true,
+      ),
+    );
+
+    debugPrint("STATUS: ${response.statusCode}");
+
+    if (response.statusCode == 401) {
+      _toast("Session expired", isError: true);
+      return;
+    }
+
+    if (response.statusCode != 200) {
+      final msg = String.fromCharCodes(response.data ?? []);
+      _toast("❌ Server error: $msg", isError: true);
+      return;
+    }
+
+    final bytes = response.data;
+
+    if (bytes == null || bytes.isEmpty) {
+      _toast("Empty PDF", isError: true);
+      return;
+    }
+
+    // ✅ CHECK PDF SIGNATURE
+    final header = String.fromCharCodes(bytes.take(20));
+    if (!header.contains("%PDF")) {
+      _toast("❌ Not a valid PDF", isError: true);
+      debugPrint(header);
+      return;
+    }
+
+    final dir = await getTemporaryDirectory();
+    final path = "${dir.path}/cert_${cert.id}.pdf";
+
+    final file = File(path);
+    await file.writeAsBytes(bytes);
+
+    final result = await OpenFilex.open(path);
+
+    if (result.type != ResultType.done) {
+      _toast("No app to open PDF", isError: true);
+    }
+  } catch (e) {
+    debugPrint("VIEW ERROR: $e");
+    _toast("View failed: $e", isError: true);
+  } finally {
+    _setLoading(cert.id, false);
   }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // DOWNLOAD  –  GET /api/student-wallet/certificates/:id/download
@@ -200,101 +170,64 @@ class _CertificatesPageState extends State<CertificatesPage> {
   //              Saves PDF to app documents directory (works on all Android versions)
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _downloadCertificate(WalletCert cert) async {
-    if (!mounted) return;
-    _setLoading(cert.id, true);
+  if (!mounted) return;
+  _setLoading(cert.id, true);
 
-    try {
-      // 1. Get auth token
-      final token =
-          await Provider.of<WalletProvider>(context, listen: false).getToken();
-      if (token == null || token.isEmpty) {
-        _toast('Authentication token missing', isError: true);
-        return;
-      }
+  try {
+    final token =
+        await Provider.of<WalletProvider>(context, listen: false).getToken();
 
-      _toast('Downloading PDF…');
-
-      // 2. Determine save path
-      //    Android 10+ scoped storage: use getApplicationDocumentsDirectory (no perms needed)
-      //    Android 9 and below: try /storage/emulated/0/Download, fallback to app docs
-      String savePath;
-      final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-      final fileName = 'Certificate_$safe.pdf';
-
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        try {
-          // Attempt public Downloads folder (works on Android ≤ 9)
-          savePath = '/storage/emulated/0/Download/$fileName';
-        } catch (_) {
-          final dir = await getApplicationDocumentsDirectory();
-          savePath = '${dir.path}/$fileName';
-        }
-      } else {
-        final dir = await getApplicationDocumentsDirectory();
-        savePath = '${dir.path}/$fileName';
-      }
-
-      // 3. GET PDF via Dio download. Prefer server-provided URL.
-      String url = cert.downloadUrl.isNotEmpty ? cert.downloadUrl : ApiConstants.downloadCertificate(cert.id);
-      if (!url.startsWith('http')) {
-        url = '${ApiConstants.baseUrl.split('/api')[0]}$url';
-      }
-
-      final dio = Dio();
-      final response = await dio.download(
-        url,
-        savePath,
-        options: Options(
-          headers: {'x-student-wallet': token},
-          responseType: ResponseType.bytes,
-          followRedirects: true,
-          validateStatus: (s) => s != null && s < 500,
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (response.statusCode == 401) {
-        _toast('Session expired. Please log in again.', isError: true);
-        return;
-      }
-      if (response.statusCode != 200) {
-        _toast('Server error: ${response.statusCode}', isError: true);
-        return;
-      }
-
-      _toast('✅ PDF saved! Open in your Files app.');
-    } on DioException catch (e) {
-      if (!mounted) return;
-      if (e.response?.statusCode == 401) {
-        _toast('Session expired. Please log in again.', isError: true);
-        return;
-      }
-      // Fallback: try app documents directory
-      try {
-        final token2 =
-            await Provider.of<WalletProvider>(context, listen: false).getToken();
-        final safe = cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-        final dir = await getApplicationDocumentsDirectory();
-        final fallback = '${dir.path}/Certificate_$safe.pdf';
-        await Dio().download(
-          ApiConstants.downloadCertificate(cert.id),
-          fallback,
-          options: Options(
-            headers: {'x-student-wallet': token2},
-            responseType: ResponseType.bytes,
-          ),
-        );
-        if (mounted) _toast('✅ PDF saved to app storage!');
-      } catch (_) {
-        if (mounted) _toast('Download failed: ${e.message}', isError: true);
-      }
-    } catch (e) {
-      if (mounted) _toast('Download error: $e', isError: true);
-    } finally {
-      _setLoading(cert.id, false);
+    if (token == null || token.isEmpty) {
+      _toast("❌ Token missing", isError: true);
+      return;
     }
+
+    final url = ApiConstants.downloadCertificate(cert.id);
+    debugPrint("DOWNLOAD URL: $url");
+
+    final dir = await getApplicationDocumentsDirectory();
+    final fileName =
+        "Certificate_${cert.templateName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}.pdf";
+
+    final savePath = "${dir.path}/$fileName";
+
+    final dio = Dio();
+
+    final response = await dio.download(
+      url,
+      savePath,
+      options: Options(
+        headers: {
+          'x-student-wallet': token,
+          // 'Authorization': 'Bearer $token',
+        },
+        validateStatus: (status) => true,
+      ),
+    );
+
+    debugPrint("STATUS: ${response.statusCode}");
+
+    if (response.statusCode == 401) {
+      _toast("Session expired", isError: true);
+      return;
+    }
+
+    if (response.statusCode != 200) {
+      _toast("❌ Download failed: ${response.statusCode}", isError: true);
+      return;
+    }
+
+    _toast("✅ PDF saved successfully");
+
+    // OPTIONAL: auto open after download
+    await OpenFilex.open(savePath);
+  } catch (e) {
+    debugPrint("DOWNLOAD ERROR: $e");
+    _toast("Download failed: $e", isError: true);
+  } finally {
+    _setLoading(cert.id, false);
   }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // VERIFY / SHARE  –  POST /api/student-wallet/certificates/:id/share
@@ -302,50 +235,50 @@ class _CertificatesPageState extends State<CertificatesPage> {
   //                    Returns: shareable verification URL → open in browser
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _verifyCertificate(WalletCert cert) async {
-    if (!mounted) return;
+  if (!mounted) return;
 
-    if (cert.lifecycle.state != 'Active') {
-      _toast(
-        'Verification unavailable — certificate is ${cert.lifecycle.state}',
-        isError: true,
-      );
+  if (cert.lifecycle.state != 'Active') {
+    _toast("Certificate not active", isError: true);
+    return;
+  }
+
+  _setLoading(cert.id, true);
+
+  try {
+    final walletProvider =
+        Provider.of<WalletProvider>(context, listen: false);
+
+    final url = await walletProvider.getShareableUrl(cert.id);
+
+    debugPrint("VERIFY URL: $url");
+
+    if (url == null || url.isEmpty) {
+      _toast("❌ No verification link", isError: true);
       return;
     }
 
-    _setLoading(cert.id, true);
-    _toast('Fetching verification link…');
+    final uri = Uri.tryParse(url);
 
-    try {
-      final walletProvider =
-          Provider.of<WalletProvider>(context, listen: false);
-
-      // POST …/share  (header: x-student-wallet) → returns shareable URL
-      final shareUrl = await walletProvider.getShareableUrl(cert.id);
-
-      if (!mounted) return;
-
-      if (shareUrl != null && shareUrl.isNotEmpty) {
-        final uri = Uri.tryParse(shareUrl);
-        if (uri == null || !uri.hasScheme) {
-          _toast('Invalid URL returned by server', isError: true);
-          return;
-        }
-        _toast('Opening verification page…');
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        _toast(walletProvider.error ?? 'Verification URL not found', isError: true);
-      }
-    } catch (e) {
-      if (mounted) {
-        _toast(
-          'Verify error: ${e.toString().split('Exception: ').last}',
-          isError: true,
-        );
-      }
-    } finally {
-      _setLoading(cert.id, false);
+    if (uri == null || !uri.hasScheme) {
+      _toast("❌ Invalid URL", isError: true);
+      return;
     }
+
+    final canLaunch = await canLaunchUrl(uri);
+
+    if (!canLaunch) {
+      _toast("❌ Cannot open link", isError: true);
+      return;
+    }
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (e) {
+    debugPrint("VERIFY ERROR: $e");
+    _toast("Verify failed: $e", isError: true);
+  } finally {
+    _setLoading(cert.id, false);
   }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // Action sheet  – uses sheetCtx (sheet's own context) to dismiss the sheet,
