@@ -1,6 +1,6 @@
 class ApiConstants {
   // Use '10.0.2.2' for Android Emulator, or your Local IP (192.168.x.x) for Physical Devices
-  static const String baseUrl = 'http://192.168.1.4:3000/api';
+  static const String baseUrl = 'https://justifai-backend-production-8ec9.up.railway.app/api';
 
   
   // Wallet Endpoints
@@ -14,3 +14,4 @@ class ApiConstants {
   static String downloadCertificate(String id) => '$certificates/$id/download';
   static String viewCertificate(String id) => '$certificates/$id/view';
 }
+
